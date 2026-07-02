@@ -92,6 +92,22 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
+  .indicator-period {
+    width: 54px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+  .indicator-period:focus {
+    outline: none;
+    border-color: var(--orange);
+  }
 
   /* ── Controls bar ─────────────────────────────────────────── */
   .controls {
@@ -469,7 +485,9 @@
   <div class="ribbon-group">
     <span class="ribbon-label">Indicators</span>
     <button class="ribbon-chip" data-indicator="sma" id="ind-sma">SMA 20</button>
+    <input class="indicator-period" id="sma-period" data-period="sma" type="number" min="2" max="300" step="1" value="20" title="SMA period">
     <button class="ribbon-chip" data-indicator="ema" id="ind-ema">EMA 20</button>
+    <input class="indicator-period" id="ema-period" data-period="ema" type="number" min="2" max="300" step="1" value="20" title="EMA period">
     <button class="ribbon-chip" data-indicator="vwap" id="ind-vwap">VWAP</button>
   </div>
 </div>
@@ -753,7 +771,14 @@ const orbState = {
   currentResolution: '5m',    // active resolution chip (1m/5m/15m)
   bars1mAvailable: false,     // whether server attached bars_1m to ≥1 trade
   indicators: { sma: false, ema: false, vwap: false },
+  indicatorPeriods: { sma: 20, ema: 20 },
 };
+
+function sanitizeIndicatorPeriod(value, fallback = 20) {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(2, Math.min(300, n));
+}
 
 // Hydrate persisted state BEFORE the first run so the ribbon reflects the
 // user's last choices. Failures (private mode, quota) silently use defaults.
@@ -769,6 +794,10 @@ try {
       orbState.indicators.ema = !!parsed.indicators.ema;
       orbState.indicators.vwap = !!parsed.indicators.vwap;
     }
+    if (parsed && parsed.indicatorPeriods) {
+      orbState.indicatorPeriods.sma = sanitizeIndicatorPeriod(parsed.indicatorPeriods.sma, 20);
+      orbState.indicatorPeriods.ema = sanitizeIndicatorPeriod(parsed.indicatorPeriods.ema, 20);
+    }
   }
 } catch (_) { /* ignore */ }
 
@@ -777,6 +806,7 @@ function persistRibbonState() {
     localStorage.setItem('orb-ribbon', JSON.stringify({
       resolution: orbState.currentResolution,
       indicators: orbState.indicators,
+      indicatorPeriods: orbState.indicatorPeriods,
     }));
   } catch (_) { /* ignore */ }
 }
@@ -927,10 +957,17 @@ function vwapCalc(bars) {
 // readable; orange chosen last because it's the accent color used by the
 // run button.
 const INDICATOR_STYLE = {
-  sma:  { color: '#3b82f6', title: 'SMA 20' },  // blue
-  ema:  { color: '#eab308', title: 'EMA 20' },  // yellow
+  sma:  { color: '#3b82f6', baseTitle: 'SMA' },  // blue
+  ema:  { color: '#eab308', baseTitle: 'EMA' },  // yellow
   vwap: { color: '#ff9a73', title: 'VWAP' },    // soft orange
 };
+
+function indicatorTitle(kind) {
+  if (kind === 'sma' || kind === 'ema') {
+    return `${INDICATOR_STYLE[kind].baseTitle} ${orbState.indicatorPeriods[kind]}`;
+  }
+  return INDICATOR_STYLE[kind].title;
+}
 
 // ── Active indicator series registry ──────────────────────
 // Tracks the LineSeries handles we attached to each chart so a toggle-off
@@ -942,15 +979,15 @@ function setIndicatorOnChart(trade, kind, on) {
   if (on && !series[kind]) {
     const bars = pickBarsForResolution(trade, orbState.currentResolution);
     let data = [];
-    if (kind === 'sma') data = smaCalc(bars, 20);
-    else if (kind === 'ema') data = emaCalc(bars, 20);
+    if (kind === 'sma') data = smaCalc(bars, orbState.indicatorPeriods.sma);
+    else if (kind === 'ema') data = emaCalc(bars, orbState.indicatorPeriods.ema);
     else if (kind === 'vwap') data = vwapCalc(bars);
     if (!data.length) return;
     const style = INDICATOR_STYLE[kind];
     const lineSeries = trade._chart.addSeries(LineSeries, {
       color: style.color,
       lineWidth: 2,
-      title: style.title,
+      title: indicatorTitle(kind),
       priceLineVisible: false,
       lastValueVisible: false,
     });
@@ -993,9 +1030,28 @@ function updateResolutionAvailability() {
 }
 
 function updateIndicatorChips() {
-  document.getElementById('ind-sma').classList.toggle('active', orbState.indicators.sma);
-  document.getElementById('ind-ema').classList.toggle('active', orbState.indicators.ema);
+  const smaBtn = document.getElementById('ind-sma');
+  const emaBtn = document.getElementById('ind-ema');
+  smaBtn.classList.toggle('active', orbState.indicators.sma);
+  emaBtn.classList.toggle('active', orbState.indicators.ema);
   document.getElementById('ind-vwap').classList.toggle('active', orbState.indicators.vwap);
+  smaBtn.textContent = `SMA ${orbState.indicatorPeriods.sma}`;
+  emaBtn.textContent = `EMA ${orbState.indicatorPeriods.ema}`;
+  document.getElementById('sma-period').value = orbState.indicatorPeriods.sma;
+  document.getElementById('ema-period').value = orbState.indicatorPeriods.ema;
+}
+
+function setIndicatorPeriod(kind, value) {
+  if (kind !== 'sma' && kind !== 'ema') return;
+  const period = sanitizeIndicatorPeriod(value, orbState.indicatorPeriods[kind]);
+  if (period === orbState.indicatorPeriods[kind]) {
+    updateIndicatorChips();
+    return;
+  }
+  orbState.indicatorPeriods[kind] = period;
+  updateIndicatorChips();
+  persistRibbonState();
+  if (orbState.indicators[kind]) renderAllCharts();
 }
 
 // Resolution button click handler: re-aggregate bars client-side, no
@@ -1506,6 +1562,18 @@ document.querySelectorAll('.ribbon').forEach((ribbon) => {
     }
     const indBtn = e.target.closest('[data-indicator]');
     if (indBtn) toggleIndicator(indBtn.dataset.indicator);
+  });
+});
+
+document.querySelectorAll('[data-period]').forEach((input) => {
+  input.addEventListener('change', (e) => {
+    setIndicatorPeriod(e.target.dataset.period, e.target.value);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.target.blur();
+    }
   });
 });
 
