@@ -19,5 +19,7 @@ python3 server.py             # serves on :8765
 
 ## Layout
 
-- `server.py` — Python HTTP server, `/api/orb?symbol=...&or=15&days=20&interval=5m` route, bad-wick clamp (RTH 5×, premarket 3×, post-market 3×), 3N target, OR-opposite stop, first-hit exit (target/stop/EOD, stop wins same-bar), MFE/MAE entry→exit, normalized-risk sizing
+- `server.py` — Python HTTP server, `/api/orb?symbol=...&or=15&days=20&interval=5m` route, Yahoo fetch/proxy, summary assembly, and backwards-compatible API payload
+- `trading_atoms/` — reusable trading atom library: session slicing, bad-wick clamp, opening range, breakout entry, OR-opposite stop, R-multiple target, first-hit exit (target/stop/EOD, stop wins same-bar), P&L/MFE/MAE metrics, and ORB strategy composition
+- `tests/test_trading_atoms.py` — stdlib unittest coverage for ORB atoms and edge cases
 - `das-overlay.js` — reusable SVG execution marker overlay factory
