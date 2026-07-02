@@ -2,27 +2,67 @@
 
 ## Problem
 
-The top strip of each trade card is showing the `$` move of the stock (raw price change over the trade window), not the P&L of the trade (which is `pnl × size`).
+The top strip of each trade card is showing the **per-share dollar P&L**, not the **trade P&L after share-size scaling**.
 
-Currently the top strip shows: `[TICKER] [LONG/SHORT] [+pnl$] [+RRatioR] [DATE]`
+Currently: `[TICKER] [LONG/SHORT] [+0.52] [+0.19R] [DATE]`
 
-But `+pnl$` is being populated from the wrong field. It needs to come from `trade.pnl` (dollar P&L of the trade after share-size scaling), not from a price-delta calculation.
+For Jul 01 SPY LONG: `pnl=0.52, size=35 sh` → actual trade P&L is `0.52 × 35 = $18.20`, not $0.52. The strip is reading `trade.pnl` (per-share) directly instead of `trade.pnl × size`.
+
+User's request: top strip should show the trade's actual dollar P&L (post-sizing).
+
+## Backend state (do NOT change)
+
+Verified by direct API call to `http://localhost:8765/api/orb?symbol=SPY&or=15&days=20&interval=5m`:
+- `trade.pnl` is per-share dollar P&L (e.g. 0.52 for Jul 01)
+- `trade.pnl_pct` is per-share % P&L (e.g. 0.07)
+- `trade.size` is NOT returned by the server (`size: None` in JSON)
+
+The size is computed client-side in `orb.html`:
+```js
+const size = riskPerShare > 0 ? Math.floor(RISK_PER_TRADE / riskPerShare) : 0;
+```
+where `RISK_PER_TRADE = 100` and `riskPerShare = Math.abs(trade.entry - trade.stop_price)`.
+
+## Fix (client-side only)
+
+In the `pnl-dollars` `<span>` template, change:
+```js
+<span class="pnl-dollars">${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}</span>
+```
+to use the per-trade dollar P&L:
+```js
+<span class="pnl-dollars">${tradePnlDollars >= 0 ? '+' : ''}${tradePnlDollars.toFixed(2)}</span>
+```
+where `tradePnlDollars = trade.pnl * size` is computed alongside the existing derived fields.
+
+Also update the color logic: `isWin` is already derived from `trade.pnl > 0` (sign of per-share P&L matches sign of trade P&L, so this still works), but for clarity consider `tradePnlDollars > 0` to match the displayed value.
 
 ## Acceptance
 
-- The dollar value in the top strip equals `trade.pnl` (the field already on each trade object)
-- Same color coding: green for positive, red for negative (matches `isWin` derived from `trade.pnl > 0`)
-- Sign included (`+` for positive, implicit `-` for negative)
-- For 20 SPY trades with normalized $100 risk: range should be roughly +$280 (3R wins) to -$100 (-1R losses), not micro-amounts like +0.52
+- For 20 SPY trades with normalized $100 risk, top-strip dollar values range roughly from -$100 (losses) to +$300 (3R wins)
+- Spot-check 3-5 cards: `top-strip dollar ≈ trade.pnl × size`
+- Sign is included: `+` for positive, implicit `-` for negative
+- Color coding matches the displayed value: green if shown as positive, red if negative
+
+## Spot-check examples (from verified API output)
+
+- Jul 01 LONG: pnl=0.52, stop=2.80, size=35 → $18.20
+- Jun 30 LONG: pnl=4.26, stop=1.42, size=70 → $298.20
+- Jun 29 LONG: pnl=-3.26, stop=3.26, size=30 → -$97.80
+- Jun 25 SHORT: pnl=0.77, stop=5.33, size=18 → $13.86
+- Jun 24 SHORT: pnl=-2.97, stop=5.33, size=18 → -$53.46
 
 ## Verification
 
-After fix, sample trade checks:
-- Jul 01 LONG pnl=+0.52 → if showing as stock move, that's wrong. Should show as the full dollar P&L: `pnl × size = 0.52 × 35 = $18.20` (or whatever the scaled value is from the API)
-- Spot-check 3-5 cards match between top-strip dollar value and a manual `trade.pnl × trade.size` calculation
+1. Reload http://localhost:8765/orb.html
+2. Pick 3-5 cards, manually calculate `trade.pnl × size` for each
+3. Compare to top-strip dollar value — should match
+4. Confirm range: max positive should be ~$300 (3R), max negative ~-$100 (-1R)
+5. Take screenshot
 
 ## Constraints
 
 - 12-cell bottom strip is LOCKED — do not touch
-- Top strip template is LOCKED for layout — only the value source changes
-- Server is already returning `trade.pnl` (dollar P&L after size) on every trade — no backend change needed
+- Top strip layout (DOM order) is LOCKED — only the value calculation changes
+- 14px direction pill, 13px date, 30px ticker — all sizes stay
+- Bottom-strip `P&L`-related cells still use the same `pnl` (per-share) field; those do NOT change in this issue (separate normalization could come later)

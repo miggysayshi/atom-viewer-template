@@ -36,6 +36,63 @@
     min-height: 100vh;
   }
 
+  /* ── Resolution + indicator toggle row ──────────────────────── */
+  /* Distinct from .controls — sits as a SECOND row below the run controls.
+     Visual language reuses the orange accent so the user recognizes these
+     as a sibling of the controls bar (not a modal). Compact button group
+     — each chip is just a label, no icon. Active chip gets the same orange
+     pill treatment as the BG swatches for visual consistency. */
+  .ribbon {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 49px;            /* sits right under the .controls bar */
+    z-index: 99;
+  }
+  .ribbon-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ribbon-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  /* Toggle chip — same shape as .bg-swatch but rectangular to fit text. */
+  .ribbon-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    font-family: inherit;
+  }
+  .ribbon-chip:hover:not(:disabled) {
+    color: var(--text);
+    border-color: #555;
+  }
+  .ribbon-chip.active {
+    background: rgba(255,104,44,0.18);
+    color: #ff9a73;
+    border-color: var(--orange);
+  }
+  .ribbon-chip:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
   /* ── Controls bar ─────────────────────────────────────────── */
   .controls {
     background: var(--surface);
@@ -165,9 +222,11 @@
     max-width: 1800px;
     margin: 0 auto;
   }
-  /* Card surface uses --card-bg so the BG swatch can repaint both the card
-     frame AND every chart layout background in lockstep. Default fallback
-     keeps the card readable even before the JS sets the variable. */
+  /* Hide the TradingView attribution link injected by lightweight-charts
+     v5. The link is rendered with id="tv-attr-logo" inside each chart
+     wrap. We hide it across all charts so the gallery is clean. */
+  #tv-attr-logo { display: none !important; }
+  a[href*="tradingview.com"] { display: none !important; }
   .card {
     background: var(--card-bg, #161a14);
     border: 1px solid var(--border);
@@ -191,16 +250,18 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     justify-content: flex-start;
     border-bottom: 1px solid var(--border);
   }
-  /* Left group: ticker | direction | date, all on a single row. */
+  /* Left group: ticker | direction | pnl-block, all on a single row.
+     Date is pushed to the right edge via margin-left:auto below. */
   .card-head .head-left {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    align-items: baseline;
+    gap: 10px;
     min-width: 0;
+    flex: 0 1 auto;
   }
   /* Ticker: large bare text per the locked top-strip spec. No pill, no
      background, no border, no border-radius. Dominates the top-left so the
@@ -215,10 +276,11 @@
     color: var(--text);
   }
   .card-head .day-date {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--muted);
     margin-left: auto;        /* pin date to right edge of card-head */
+    white-space: nowrap;
   }
   .pnl-block {
     display: flex;
@@ -226,13 +288,15 @@
     gap: 6px;
     font-variant-numeric: tabular-nums;
     text-align: right;
+    min-width: 0;
+    flex-shrink: 1;
   }
   .pnl-block .pnl-dollars {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
   }
   .pnl-block .pnl-rratio {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     opacity: 0.85;
   }
@@ -390,6 +454,24 @@
     Run Backtest
   </button>
   <div class="spinner" id="spinner"></div>
+</div>
+
+<!-- Resolution + indicator toggle row. Sits BELOW the controls bar and is
+     sticky under it so the user can flip resolution / indicators while
+     scrolling through the gallery. -->
+<div class="ribbon" id="ribbon">
+  <div class="ribbon-group">
+    <span class="ribbon-label">Resolution</span>
+    <button class="ribbon-chip" data-resolution="1m" id="res-1m">1m</button>
+    <button class="ribbon-chip active" data-resolution="5m" id="res-5m">5m</button>
+    <button class="ribbon-chip" data-resolution="15m" id="res-15m">15m</button>
+  </div>
+  <div class="ribbon-group">
+    <span class="ribbon-label">Indicators</span>
+    <button class="ribbon-chip" data-indicator="sma" id="ind-sma">SMA 20</button>
+    <button class="ribbon-chip" data-indicator="ema" id="ind-ema">EMA 20</button>
+    <button class="ribbon-chip" data-indicator="vwap" id="ind-vwap">VWAP</button>
+  </div>
 </div>
 
 <div class="summary-bar" id="summaryBar" style="display:none;">
@@ -657,6 +739,315 @@ function showExecutionPopup(execution, trade) {
   document.addEventListener('mousedown', onMouseDown, true);
 }
 
+// ── Resolution + indicator state ────────────────────────────
+// Single source of truth for everything the ribbon toggles. Persisted to
+// localStorage so the user's choices survive a reload. trades[] is also
+// cached here so a resolution/indicator toggle can re-render without a
+// refetch — the cards' P&L stays untouched because re-render only touches
+// chart contents, not card DOM.
+const RESOLUTION_SECONDS = { '1m': 60, '2m': 120, '3m': 180, '5m': 300, '10m': 600, '15m': 900, '30m': 1800, '1h': 3600 };
+
+const orbState = {
+  trades: [],                 // last server response trades[]
+  summary: {},                // last server response summary{}
+  currentResolution: '5m',    // active resolution chip (1m/5m/15m)
+  bars1mAvailable: false,     // whether server attached bars_1m to ≥1 trade
+  indicators: { sma: false, ema: false, vwap: false },
+};
+
+// Hydrate persisted state BEFORE the first run so the ribbon reflects the
+// user's last choices. Failures (private mode, quota) silently use defaults.
+try {
+  const saved = localStorage.getItem('orb-ribbon');
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    if (parsed && RESOLUTION_SECONDS[parsed.resolution]) {
+      orbState.currentResolution = parsed.resolution;
+    }
+    if (parsed && parsed.indicators) {
+      orbState.indicators.sma = !!parsed.indicators.sma;
+      orbState.indicators.ema = !!parsed.indicators.ema;
+      orbState.indicators.vwap = !!parsed.indicators.vwap;
+    }
+  }
+} catch (_) { /* ignore */ }
+
+function persistRibbonState() {
+  try {
+    localStorage.setItem('orb-ribbon', JSON.stringify({
+      resolution: orbState.currentResolution,
+      indicators: orbState.indicators,
+    }));
+  } catch (_) { /* ignore */ }
+}
+
+// ── Resolution aggregator ─────────────────────────────────
+// Deterministic OHLCV bucket: groups N source-seconds bars into M
+// target-seconds bars. Bucket key = floor(time / targetSeconds) * targetSeconds
+// so two clients given the same input produce identical output. The bucket
+// `time` is the LEFT EDGE of the bucket (aligned to clock boundary).
+//
+// Aggregation rules (standard):
+//   open   = first.open
+//   high   = max(high)
+//   low    = min(low)
+//   close  = last.close
+//   volume = sum(volume)
+//   time   = floor(bar.time / target) * target (left edge)
+//   et     = first bar's et string
+//   session = first bar's session (best-effort — buckets typically
+//             don't cross session boundaries in practice)
+function aggregateBars(bars, sourceSeconds, targetSeconds) {
+  if (!bars || !bars.length) return [];
+  if (targetSeconds <= sourceSeconds) {
+    // No aggregation needed (or counter-productive). Return shallow copies so
+    // the caller can't mutate our cached source bars.
+    return bars.map((b) => ({ ...b }));
+  }
+  const factor = targetSeconds / sourceSeconds;
+  const out = [];
+  let bucketKey = Math.floor(bars[0].time / targetSeconds) * targetSeconds;
+  let bucket = null;
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i];
+    const key = Math.floor(b.time / targetSeconds) * targetSeconds;
+    if (key !== bucketKey || !bucket) {
+      if (bucket) out.push(bucket);
+      bucketKey = key;
+      bucket = {
+        time: key,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: b.volume || 0,
+        et: b.et,
+        session: b.session,
+      };
+    } else {
+      if (b.high > bucket.high) bucket.high = b.high;
+      if (b.low < bucket.low) bucket.low = b.low;
+      bucket.close = b.close;
+      bucket.volume += (b.volume || 0);
+    }
+  }
+  if (bucket) out.push(bucket);
+  // Round high/low/close to 4dp to match server precision. The 1m source
+  // already comes clamped+server-rounded, so this only normalizes when a
+  // bucket straddles tiny accumulation errors.
+  for (let i = 0; i < out.length; i++) {
+    out[i].high = +out[i].high.toFixed(4);
+    out[i].low = +out[i].low.toFixed(4);
+    out[i].close = +out[i].close.toFixed(4);
+  }
+  // Surface the factor for debugging — never read by other code.
+  out._factor = factor;
+  return out;
+}
+
+// pickBarsForResolution(trade, resolution): choose the bar array that the
+// chart should display for the given resolution. Three sources, in order:
+//   1. trade.bars_1m if resolution == '1m' and bars_1m present
+//   2. aggregated trade.bars_1m if trade.bars_1m present (1m source → target)
+//   3. trade.bars (the originally requested resolution) as a fallback
+//
+// Trade P&L, OR H/L, execution timestamps are strategy outputs and do NOT
+// change with resolution; only the displayed bars change.
+function pickBarsForResolution(trade, resolution) {
+  const targetSec = RESOLUTION_SECONDS[resolution];
+  if (Array.isArray(trade.bars_1m) && trade.bars_1m.length) {
+    if (resolution === '1m') {
+      return trade.bars_1m.slice();  // shallow copy — caller may mutate
+    }
+    // 5m / 15m from 1m source. Aggregator takes care of bucket alignment.
+    return aggregateBars(trade.bars_1m, 60, targetSec);
+  }
+  // Fallback: 1m unavailable (Yahoo 422). Use trade.bars as-is and tell the
+  // caller what source interval we resolved to. The chart renders correctly
+  // but at the originally requested resolution. Resolution buttons must
+  // show this gracefully — see updateResolutionAvailability().
+  return trade.bars.slice();
+}
+
+// ── Indicator calculators ──────────────────────────────────
+// All return arrays of {time, value} compatible with Lightweight Charts
+// LineSeries.setData(). Skipped entries are filtered so the line series
+// starts cleanly at the first valid bar.
+function smaCalc(bars, period) {
+  const out = [];
+  let sum = 0;
+  for (let i = 0; i < bars.length; i++) {
+    sum += bars[i].close;
+    if (i >= period) sum -= bars[i - period].close;
+    if (i >= period - 1) {
+      out.push({ time: bars[i].time, value: +(sum / period).toFixed(4) });
+    }
+  }
+  return out;
+}
+
+function emaCalc(bars, period) {
+  const out = [];
+  if (bars.length < period) return out;
+  const k = 2 / (period + 1);
+  // Seed with SMA of first `period` closes so the EMA doesn't start from
+  // an arbitrary first-bar value (TradingView convention).
+  let seed = 0;
+  for (let i = 0; i < period; i++) seed += bars[i].close;
+  seed /= period;
+  let prev = seed;
+  for (let i = 0; i < period; i++) {
+    prev = bars[i].close * k + prev * (1 - k);
+  }
+  out.push({ time: bars[period - 1].time, value: +prev.toFixed(4) });
+  for (let i = period; i < bars.length; i++) {
+    prev = bars[i].close * k + prev * (1 - k);
+    out.push({ time: bars[i].time, value: +prev.toFixed(4) });
+  }
+  return out;
+}
+
+function vwapCalc(bars) {
+  let cumPV = 0;
+  let cumV = 0;
+  const out = [];
+  for (const b of bars) {
+    const v = Number(b.volume) || 0;
+    const typ = (b.high + b.low + b.close) / 3;
+    cumPV += typ * v;
+    cumV += v;
+    if (cumV > 0) {
+      out.push({ time: b.time, value: +(cumPV / cumV).toFixed(4) });
+    }
+  }
+  return out;
+}
+
+// Indicator color palette. Picks distinct hues so multiple overlays stay
+// readable; orange chosen last because it's the accent color used by the
+// run button.
+const INDICATOR_STYLE = {
+  sma:  { color: '#3b82f6', title: 'SMA 20' },  // blue
+  ema:  { color: '#eab308', title: 'EMA 20' },  // yellow
+  vwap: { color: '#ff9a73', title: 'VWAP' },    // soft orange
+};
+
+// ── Active indicator series registry ──────────────────────
+// Tracks the LineSeries handles we attached to each chart so a toggle-off
+// can remove the right series without rebuilding the whole chart.
+const indicatorSeriesByTrade = new Map();  // trade.date -> { sma?, ema?, vwap? }
+
+function setIndicatorOnChart(trade, kind, on) {
+  const series = indicatorSeriesByTrade.get(trade.date) || {};
+  if (on && !series[kind]) {
+    const bars = pickBarsForResolution(trade, orbState.currentResolution);
+    let data = [];
+    if (kind === 'sma') data = smaCalc(bars, 20);
+    else if (kind === 'ema') data = emaCalc(bars, 20);
+    else if (kind === 'vwap') data = vwapCalc(bars);
+    if (!data.length) return;
+    const style = INDICATOR_STYLE[kind];
+    const lineSeries = trade._chart.addSeries(LineSeries, {
+      color: style.color,
+      lineWidth: 2,
+      title: style.title,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    });
+    lineSeries.setData(data);
+    series[kind] = lineSeries;
+    indicatorSeriesByTrade.set(trade.date, series);
+  } else if (!on && series[kind]) {
+    try { trade._chart.removeSeries(series[kind]); } catch (_) {}
+    delete series[kind];
+    if (Object.keys(series).length === 0) indicatorSeriesByTrade.delete(trade.date);
+    else indicatorSeriesByTrade.set(trade.date, series);
+  }
+}
+
+// Apply the current indicator state to a chart (called from
+// renderMiniChart for each card after the candle series is built).
+function applyIndicatorsToChart(trade) {
+  if (orbState.indicators.sma) setIndicatorOnChart(trade, 'sma', true);
+  if (orbState.indicators.ema) setIndicatorOnChart(trade, 'ema', true);
+  if (orbState.indicators.vwap) setIndicatorOnChart(trade, 'vwap', true);
+}
+
+// ── Ribbon wiring ──────────────────────────────────────────
+// Update the visual state of the resolution chips: the active one gets
+// .active, the disabled ones get :disabled (when bars_1m isn't available
+// from the server). The 1m button is disabled if bars1mAvailable is
+// false; the other chips (5m/15m) fall back to trade.bars and stay
+// enabled so the user can still flip between display resolutions.
+function updateResolutionAvailability() {
+  const oneMinAvailable = orbState.bars1mAvailable;
+  for (const res of ['1m', '5m', '15m']) {
+    const btn = document.getElementById(`res-${res}`);
+    if (!btn) continue;
+    btn.classList.toggle('active', res === orbState.currentResolution);
+    // 1m requires bars_1m data. 5m/15m always work — when bars_1m is
+    // missing we just show trade.bars at its native resolution and skip
+    // aggregation, which is visually identical to the requested case.
+    btn.disabled = (res === '1m' && !oneMinAvailable);
+  }
+}
+
+function updateIndicatorChips() {
+  document.getElementById('ind-sma').classList.toggle('active', orbState.indicators.sma);
+  document.getElementById('ind-ema').classList.toggle('active', orbState.indicators.ema);
+  document.getElementById('ind-vwap').classList.toggle('active', orbState.indicators.vwap);
+}
+
+// Resolution button click handler: re-aggregate bars client-side, no
+// network call. Trades' P&L is untouched — only chart contents change.
+function setResolution(res) {
+  if (!RESOLUTION_SECONDS[res] || res === orbState.currentResolution) return;
+  orbState.currentResolution = res;
+  updateResolutionAvailability();
+  persistRibbonState();
+  renderAllCharts();
+}
+
+function toggleIndicator(kind) {
+  if (!INDICATOR_STYLE[kind]) return;
+  orbState.indicators[kind] = !orbState.indicators[kind];
+  updateIndicatorChips();
+  persistRibbonState();
+  // Cheapest path: walk every chart and add/remove just the one series.
+  // Avoids a full chart rebuild so candle/overlay state is preserved.
+  for (const trade of orbState.trades) {
+    if (trade._chart) setIndicatorOnChart(trade, kind, orbState.indicators[kind]);
+  }
+}
+
+// ── Chart rebuild entry point ──────────────────────────────
+// Tears down every chart + overlay, then re-creates them from
+// orbState.trades with the current resolution and indicators. Called on:
+//   - runORB() completion (initial render)
+//   - setResolution() (chip click)
+// The card DOM (top strip, bottom strip, P&L) is NOT touched — only the
+// chart-wrap contents are replaced. This guarantees trade numbers stay
+// stable across resolution/indicator toggles.
+function renderAllCharts() {
+  // Wipe chart-wrap DOM nodes so each renderMiniChart starts clean. The
+  // .card-details strip is preserved because it lives outside .chart-wrap.
+  for (const trade of orbState.trades) {
+    const wrap = document.getElementById(`chart-${trade.date}`);
+    if (!wrap) continue;
+    // Drop any premarket/afterhours overlay divs left by the previous
+    // chart instance — they would otherwise accumulate on rebuild.
+    wrap.querySelectorAll('.pm-overlay, .post-overlay, .das-overlay').forEach((el) => el.remove());
+  }
+  // destroyAllOrbOverlays also calls destroyAllOrbCharts and clears
+  // orbCharts — that's exactly the cleanup we want.
+  destroyAllOrbOverlays();
+  // Reset indicator series registry — old series references are dead.
+  indicatorSeriesByTrade.clear();
+  for (const trade of orbState.trades) {
+    requestAnimationFrame(() => renderMiniChart(trade));
+  }
+}
+
 async function runORB() {
   const symbol = $('symbol').value.trim().toUpperCase();
   const orMinutes = $('orMinutes').value;
@@ -680,6 +1071,15 @@ async function runORB() {
       throw new Error(err.error || 'Request failed');
     }
     const data = await resp.json();
+    // Cache the response so resolution/indicator toggles can re-render
+    // without re-fetching. The cache is what `renderAllCharts()` reads.
+    orbState.trades = data.trades || [];
+    orbState.summary = data.summary || {};
+    // bars_1m is "available" if at least one trade got it from the server.
+    // Trade-by-trade fallback to trade.bars handles the case where some
+    // days are inside Yahoo's 1m window and others aren't.
+    orbState.bars1mAvailable = !!orbState.summary.bars_1m_available;
+    updateResolutionAvailability();
     renderResults(data);
   } catch (e) {
     $('summaryBar').style.display = 'none';
@@ -760,6 +1160,12 @@ function renderResults(data) {
     // floor() to whole shares; if stop == entry (zero risk) we size to 0.
     const size = riskPerShare > 0 ? Math.floor(RISK_PER_TRADE / riskPerShare) : 0;
 
+    // Trade P&L in dollars: per-share P&L × share size. The server returns
+    // `trade.pnl` as the per-share dollar move; the top strip should show
+    // the actual dollar P&L of the trade after sizing. Sign matches trade.pnl
+    // since `size` is always non-negative.
+    const tradePnlDollars = trade.pnl * size;
+
     // Reason for entry: describe the breakout direction against the OR
     // boundary that was breached, plus the entry time so the cell explains
     // both WHAT the trade did and WHEN.
@@ -783,7 +1189,7 @@ function renderResults(data) {
           <span class="ticker-symbol">${ticker}</span>
           <span class="dir-badge ${trade.direction}">${trade.direction}</span>
           <div class="pnl-block ${isWin ? 'pos' : 'neg'}">
-            <span class="pnl-dollars">${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}</span>
+            <span class="pnl-dollars">${tradePnlDollars >= 0 ? '+' : ''}${tradePnlDollars.toFixed(2)}</span>
             <span class="pnl-rratio ${rRatio >= 0 ? 'pos' : 'neg'}">${rSign}${rRatio.toFixed(2)}R</span>
           </div>
         </div>
@@ -808,9 +1214,6 @@ function renderResults(data) {
     `;
     $('gallery').appendChild(card);
 
-    // Render chart after DOM insert
-    requestAnimationFrame(() => renderMiniChart(trade));
-
     // Wire the expand/collapse toggle for the bottom detail strip. Default
     // is collapsed (locked spec). Clicking flips the .expanded class on
     // .card-details and updates aria-expanded for accessibility. Must be
@@ -825,11 +1228,25 @@ function renderResults(data) {
       });
     }
   });
+
+  // Build all charts once after the card loop completes — avoids N
+  // separate chart rebuild passes (one per card) and ensures every
+  // chart-wrap has a measured size before createChart runs.
+  requestAnimationFrame(renderAllCharts);
 }
 
 function renderMiniChart(trade) {
   const container = document.getElementById(`chart-${trade.date}`);
   if (!container) return;
+
+  // Resolve the bars to display for the current resolution. Picks from
+  // trade.bars_1m (aggregated client-side) when available, otherwise falls
+  // back to trade.bars. The chosen array is what gets fed to the candle +
+  // volume series; indicator series use the same array via pickBarsForResolution.
+  const displayBars = pickBarsForResolution(trade, orbState.currentResolution);
+  // Stash the bars + chart handle on the trade object so indicator toggles
+  // can reach them without a global lookup table.
+  trade._displayBars = displayBars;
 
   // Read currentBgColor fresh at render time so a swatch click made BEFORE
   // the run finishes picks up correctly on each new card. currentBgColor is
@@ -864,6 +1281,9 @@ function renderMiniChart(trade) {
     crosshair: { mode: 0 },
   });
 
+  // Stash the chart handle on the trade so toggleIndicator can find it.
+  trade._chart = chart;
+
   // Register so the BG swatch can repaint this chart later without having to
   // walk the DOM looking for it.
   orbCharts.add(chart);
@@ -878,7 +1298,7 @@ function renderMiniChart(trade) {
     wickUpColor: '#333333', wickDownColor: '#aaaaaa',
   });
 
-  const candleData = trade.bars.map(b => ({
+  const candleData = displayBars.map(b => ({
     time: b.time,
     open: b.open, high: b.high, low: b.low, close: b.close,
   }));
@@ -893,7 +1313,7 @@ function renderMiniChart(trade) {
   chart.priceScale('vol').applyOptions({
     scaleMargins: { top: 0.85, bottom: 0 },
   });
-  volSeries.setData(trade.bars.map(b => ({
+  volSeries.setData(displayBars.map(b => ({
     time: b.time,
     value: b.volume,
     color: b.close >= b.open ? 'rgba(15,143,97,0.3)' : 'rgba(201,74,53,0.3)',
@@ -932,8 +1352,12 @@ function renderMiniChart(trade) {
   // DARKER where after-hours sits. The contrast (lighter vs darker) lets
   // the eye tell the two sessions apart at a glance, even though both
   // are translucent.
-  const pmBars = trade.bars.filter((b) => b.session === 'pre');
-  const postBars = trade.bars.filter((b) => b.session === 'post');
+  // Premarket / post filters work on whatever bars are being displayed.
+  // When the user is on 5m the per-bar session tag is still preserved
+  // (aggregator copies session from the first bar of each bucket), so the
+  // translucent overlays still anchor to the correct session windows.
+  const pmBars = displayBars.filter((b) => b.session === 'pre');
+  const postBars = displayBars.filter((b) => b.session === 'post');
   let pmOverlay = container.querySelector('.pm-overlay');
   let postOverlay = container.querySelector('.post-overlay');
   if (pmBars.length >= 2 && pmOverlay == null) {
@@ -1031,9 +1455,13 @@ function renderMiniChart(trade) {
       entryPrice: trade.entry,
       exitTime: trade.exit_ts,
       exitPrice: trade.exit,
-      // Pass bars so findBarAt can snap execution timestamps to loaded candles
-      // (intraday timestamps may not exactly match a bar.time).
-      bars: trade.bars,
+      // Pass displayed bars so findBarAt can snap execution timestamps to
+      // the correct loaded candles. Crucial for resolution changes — when
+      // the user switches 1m → 5m, the markers must move to the bars in
+      // the new (aggregated) bar list. The entry/exit timestamps
+      // (trade.entry_ts / trade.exit_ts) don't change because they come
+      // from the strategy pipeline, not from the displayed bars.
+      bars: displayBars,
       // Carry these through for the popup's P&L context row.
       pnl: trade.pnl,
       pnl_pct: trade.pnl_pct,
@@ -1042,6 +1470,11 @@ function renderMiniChart(trade) {
     sizePct: 10,
   });
   orbOverlays.set(trade.date, overlay);
+
+  // Wire any active indicator toggles into this freshly-built chart. Done
+  // after the overlay so indicator series are added on top of every other
+  // series without disturbing the candle data the overlay reads from.
+  applyIndicatorsToChart(trade);
 
   chart.timeScale().fitContent();
 }
@@ -1059,6 +1492,28 @@ $('bgToggle').addEventListener('click', (e) => {
   const btn = e.target.closest('.bg-swatch');
   if (btn) applyBgFromSwatch(btn);
 });
+
+// ── Ribbon (resolution + indicators) wiring ─────────────────
+// Two delegated click handlers (resolution group + indicator group) keep
+// this O(1) regardless of how many chips are added later. Each handler
+// finds the right callback by reading data-* attributes off the button.
+document.querySelectorAll('.ribbon').forEach((ribbon) => {
+  ribbon.addEventListener('click', (e) => {
+    const resBtn = e.target.closest('[data-resolution]');
+    if (resBtn && !resBtn.disabled) {
+      setResolution(resBtn.dataset.resolution);
+      return;
+    }
+    const indBtn = e.target.closest('[data-indicator]');
+    if (indBtn) toggleIndicator(indBtn.dataset.indicator);
+  });
+});
+
+// Reflect the persisted state on the ribbon before the first run. This
+// makes the active chip orange and disables the 1m chip if Yahoo 422'd
+// during the previous run (resolved when runORB's response arrives).
+updateResolutionAvailability();
+updateIndicatorChips();
 
 // Paint the initial theme BEFORE the first auto-run so the first paint
 // already shows the user's saved bg (or olive green by default) instead of

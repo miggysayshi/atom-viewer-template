@@ -477,9 +477,153 @@ def run_orb_for_day(day_bars: list[dict], or_minutes: int) -> dict | None:
     }
 
 
+def _clamp_wicks_for_session(bars: list[dict], session: str) -> int:
+    """Mirror of the inline clamp_bad_wicks thresholds in run_orb_for_day().
+    Returns number of bars cleaned. RTH=5x median, premarket/post=3x median.
+    Used on the 1m parallel-fetch path so client-side aggregation starts from
+    clean data without re-running the per-trade pipeline.
+    """
+    if not bars:
+        return 0
+    threshold = 5.0 if session == "rth" else 3.0
+    ranges = [b["high"] - b["low"] for b in bars]
+    sorted_ranges = sorted(ranges)
+    n = len(sorted_ranges)
+    if n == 0:
+        return 0
+    median_range = (
+        sorted_ranges[n // 2]
+        if n % 2
+        else (sorted_ranges[n // 2 - 1] + sorted_ranges[n // 2]) / 2
+    )
+    if median_range <= 0:
+        return 0
+    cutoff = threshold * median_range
+    cleaned = 0
+    for b in bars:
+        if b["high"] - b["low"] > cutoff:
+            body_high = max(b["open"], b["close"])
+            body_low = min(b["open"], b["close"])
+            new_high = body_high + median_range
+            new_low = body_low - median_range
+            b["high"] = min(b["high"], round(new_high, 4))
+            b["low"] = max(b["low"], round(new_low, 4))
+            cleaned += 1
+    return cleaned
+
+
+def _fetch_1m_bars_safe(symbol: str, days: int) -> list[dict]:
+    """Best-effort fetch of 1m bars for the most recent N days. Yahoo 422s on
+    ranges beyond ~7 days for 1m intervals — wrap the call so the main
+    backtest response is never blocked. Returns [] on any failure.
+    """
+    try:
+        # Yahoo 1m limit is ~7 calendar days of history. We always cap at 7
+        # to avoid 422s — fetch_raw_intraday's own buffer logic goes much
+        # further back, which trips Yahoo's 1m window check. Pin period1
+        # to exactly 7 days before now.
+        import time as _t
+        now_ts = int(_t.time())
+        period1 = now_ts - 7 * 86400
+        period2 = now_ts
+        params = {
+            "interval": "1m",
+            "period1": str(period1),
+            "period2": str(period2),
+            "includePrePost": "true",
+        }
+        url = (
+            f"https://query1.finance.yahoo.com/v8/finance/chart/"
+            f"{urllib.parse.quote(symbol.strip().upper())}?"
+            f"{urllib.parse.urlencode(params)}"
+        )
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0 lightweight-yahoo-chart/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        result = (payload.get("chart", {}) or {}).get("result") or []
+        if not result:
+            return []
+        node = result[0]
+        timestamps = node.get("timestamp") or []
+        quote = (node.get("indicators", {}).get("quote") or [{}])[0]
+        bars = []
+        for idx, ts in enumerate(timestamps):
+            try:
+                o = quote["open"][idx]
+                h = quote["high"][idx]
+                l = quote["low"][idx]
+                c = quote["close"][idx]
+                v = quote["volume"][idx]
+            except (KeyError, IndexError):
+                continue
+            if None in (o, h, c, l):
+                continue
+            bars.append({
+                "ts": int(ts),
+                "open": round(float(o), 4),
+                "high": round(float(h), 4),
+                "low": round(float(l), 4),
+                "close": round(float(c), 4),
+                "volume": int(v or 0),
+            })
+        return bars
+    except Exception as exc:
+        print(f"  [1m] fetch failed for {symbol}: {exc!r}")
+        return []
+
+
 def compute_orb(symbol: str, or_minutes: int, days: int, interval: str = "5m") -> dict:
     """Full ORB run across N trading days."""
     raw = fetch_raw_intraday(symbol, interval, days)
+
+    # ── Parallel 1m fetch (best-effort) ─────────────────────────────────
+    # Yahoo returns 422 for 1m queries spanning >~7 days. Try anyway with a
+    # capped window so the client has full-resolution bars to aggregate from.
+    # If the call fails for any reason (422, network, parse), the main
+    # response proceeds unchanged and `bars_1m` is simply omitted from each
+    # trade — the client falls back to the requested interval.
+    raw_1m = _fetch_1m_bars_safe(symbol, days)
+    bars_1m_by_day: dict[str, list[dict]] = {}
+    if raw_1m:
+        # Apply per-session clamp to the 1m bars (same thresholds as the
+        # 5m path) before attaching them. Group by ET day for direct lookup.
+        for bar in raw_1m:
+            et_dt = dt.datetime.fromtimestamp(bar["ts"], tz=ET)
+            session = (
+                "pre" if et_dt.time() < MARKET_OPEN
+                else ("rth" if et_dt.time() < MARKET_CLOSE else "post")
+            )
+            bar["_session"] = session
+        grouped_1m = group_by_et_day(raw_1m)
+        for day_key, day_bars in grouped_1m.items():
+            pre = [b for b in day_bars if b["_session"] == "pre"]
+            rth = [b for b in day_bars if b["_session"] == "rth"]
+            post = [b for b in day_bars if b["_session"] == "post"]
+            _clamp_wicks_for_session(pre, "pre")
+            _clamp_wicks_for_session(rth, "rth")
+            _clamp_wicks_for_session(post, "post")
+            # Strip the _session marker before serialization (purely internal)
+            for b in day_bars:
+                b.pop("_session", None)
+            bars_1m_by_day[day_key] = [
+                {
+                    "time": b["ts"],
+                    "open": b["open"],
+                    "high": b["high"],
+                    "low": b["low"],
+                    "close": b["close"],
+                    "volume": b["volume"],
+                    "et": dt.datetime.fromtimestamp(b["ts"], tz=ET).strftime("%H:%M"),
+                    "session": (
+                        "pre" if dt.datetime.fromtimestamp(b["ts"], tz=ET).time() < MARKET_OPEN
+                        else ("rth" if dt.datetime.fromtimestamp(b["ts"], tz=ET).time() < MARKET_CLOSE else "post")
+                    ),
+                }
+                for b in day_bars
+            ]
+
     grouped = group_by_et_day(raw)
 
     # Filter: only days that have RTH bars (skip weekends/holidays with no data)
@@ -503,6 +647,21 @@ def compute_orb(symbol: str, or_minutes: int, days: int, interval: str = "5m") -
         else:
             skipped += 1
 
+    # Attach bars_1m (per trade day) if the parallel fetch produced any data.
+    # Look up by the trade's date string ("YYYY-MM-DD") — that matches the
+    # ET-day key the parallel fetch grouped by.
+    bars_1m_trade_count = 0
+    if bars_1m_by_day:
+        for trade in trades:
+            day_bars_1m = bars_1m_by_day.get(trade["date"])
+            if day_bars_1m:
+                trade["bars_1m"] = day_bars_1m
+                bars_1m_trade_count += 1
+        if bars_1m_trade_count:
+            print(
+                f"  [1m] attached bars_1m to {bars_1m_trade_count}/{len(trades)} trades"
+            )
+
     # Summary stats
     total_pnl = sum(t["pnl"] for t in trades)
     wins = [t for t in trades if t["pnl"] > 0]
@@ -517,6 +676,8 @@ def compute_orb(symbol: str, or_minutes: int, days: int, interval: str = "5m") -
         "symbol": symbol,
         "or_minutes": or_minutes,
         "interval": interval,
+        "bars_1m_available": bars_1m_trade_count > 0,
+        "bars_1m_trade_count": bars_1m_trade_count,
         "total_days": len(valid_days),
         "trade_days": len(trades),
         "skipped_days": skipped,
