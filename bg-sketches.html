@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Chart background — color sketches</title>
+<style>
+  body {
+    background: #0a0a0a;
+    color: #e8e8e8;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    margin: 0;
+    padding: 32px 20px;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  p.lede { color: #888; margin: 0 0 24px; font-size: 13px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 18px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+  .card {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #222;
+  }
+  .card-head {
+    padding: 12px 16px;
+    background: #161616;
+    border-bottom: 1px solid #222;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .card-head .name { font-weight: 700; font-size: 14px; }
+  .card-head .hex { color: #888; font-size: 12px; font-family: ui-monospace, monospace; }
+  .canvas-wrap {
+    position: relative;
+    height: 220px;
+    padding: 8px;
+  }
+  /* Candle fake */
+  .chart-area {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+  }
+  .candle {
+    width: 14px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .wick {
+    width: 2px;
+    background: currentColor;
+    flex: 1;
+  }
+  .body {
+    width: 14px;
+    height: 40px;
+    border: 1.5px solid currentColor;
+  }
+  /* Variant candles */
+  .black { background: #1a1a1a; color: #333; }
+  .white { background: #f0f0f0; color: #aaa; }
+  /* Triangle */
+  .triangle {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+  }
+  .buy { color: #00bfff; }
+  .sell { color: #ff4444; }
+  .triangle svg { width: 100%; height: 100%; filter: drop-shadow(0 0 2px rgba(0,0,0,0.8)); }
+  .legend {
+    padding: 10px 16px;
+    background: #161616;
+    border-top: 1px solid #222;
+    display: flex;
+    gap: 14px;
+    font-size: 11px;
+    color: #888;
+  }
+  .legend span::before {
+    content: '';
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 5px;
+    vertical-align: middle;
+    border-radius: 2px;
+  }
+  .legend .l-b::before { background: #1a1a1a; border: 1px solid #333; }
+  .legend .l-w::before { background: #f0f0f0; }
+  .legend .l-buy::before { background: #00bfff; }
+  .legend .l-sell::before { background: #ff4444; }
+  .verdict {
+    padding: 8px 16px;
+    font-size: 11px;
+    background: #111;
+    border-top: 1px solid #1a1a1a;
+    color: #aaa;
+  }
+  .verdict strong { color: #ff682c; }
+</style>
+</head>
+<body>
+  <h1>ORB chart background — sketch variants</h1>
+  <p class="lede">Black/white candles, neon triangles. Pick the bg that makes both pop without feeling like a webpage.</p>
+
+  <div class="grid">
+    <!-- 1. Pure black -->
+    <div class="card">
+      <div class="card-head"><span class="name">A · Pure black</span><span class="hex">#000000</span></div>
+      <div class="canvas-wrap" style="background:#000">
+        <div class="chart-area">
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+        </div>
+        <div class="triangle buy" style="left:70px;top:80px"><svg viewBox="0 0 18 18"><polygon points="9,1 17,16 1,16" fill="#00bfff" stroke="#fff" stroke-width="1.5"/></svg></div>
+        <div class="triangle sell" style="left:130px;top:130px"><svg viewBox="0 0 18 18"><polygon points="1,1 17,1 9,16" fill="#ff4444" stroke="#fff" stroke-width="1.5"/></svg></div>
+      </div>
+      <div class="legend">
+        <span class="l-b">black up</span>
+        <span class="l-w">white down</span>
+        <span class="l-buy">buy ▲</span>
+        <span class="l-sell">sell ▼</span>
+      </div>
+      <div class="verdict">white pops hardest; <strong>black candles disappear into bg</strong></div>
+    </div>
+
+    <!-- 2. Charcoal -->
+    <div class="card">
+      <div class="card-head"><span class="name">B · Charcoal</span><span class="hex">#0e0e10</span></div>
+      <div class="canvas-wrap" style="background:#0e0e10">
+        <div class="chart-area">
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+        </div>
+        <div class="triangle buy" style="left:70px;top:80px"><svg viewBox="0 0 18 18"><polygon points="9,1 17,16 1,16" fill="#00bfff" stroke="#fff" stroke-width="1.5"/></svg></div>
+        <div class="triangle sell" style="left:130px;top:130px"><svg viewBox="0 0 18 18"><polygon points="1,1 17,1 9,16" fill="#ff4444" stroke="#fff" stroke-width="1.5"/></svg></div>
+      </div>
+      <div class="legend">
+        <span class="l-b">black up</span>
+        <span class="l-w">white down</span>
+        <span class="l-buy">buy ▲</span>
+        <span class="l-sell">sell ▼</span>
+      </div>
+      <div class="verdict">same problem as A; <strong>only marginally separates</strong> black candles</div>
+    </div>
+
+    <!-- 3. Deep navy -->
+    <div class="card">
+      <div class="card-head"><span class="name">C · Deep navy</span><span class="hex">#0f1626</span></div>
+      <div class="canvas-wrap" style="background:#0f1626">
+        <div class="chart-area">
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+        </div>
+        <div class="triangle buy" style="left:70px;top:80px"><svg viewBox="0 0 18 18"><polygon points="9,1 17,16 1,16" fill="#00bfff" stroke="#fff" stroke-width="1.5"/></svg></div>
+        <div class="triangle sell" style="left:130px;top:130px"><svg viewBox="0 0 18 18"><polygon points="1,1 17,1 9,16" fill="#ff4444" stroke="#fff" stroke-width="1.5"/></svg></div>
+      </div>
+      <div class="legend">
+        <span class="l-b">black up</span>
+        <span class="l-w">white down</span>
+        <span class="l-buy">buy ▲</span>
+        <span class="l-sell">sell ▼</span>
+      </div>
+      <div class="verdict">Bloomberg feel. <strong>Black vs navy reads as different tones.</strong></div>
+    </div>
+
+    <!-- 4. Dark teal -->
+    <div class="card">
+      <div class="card-head"><span class="name">D · Dark teal <span style="color:#888;font-weight:400">(recommended)</span></span><span class="hex">#0d2128</span></div>
+      <div class="canvas-wrap" style="background:#0d2128">
+        <div class="chart-area">
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+        </div>
+        <div class="triangle buy" style="left:70px;top:80px"><svg viewBox="0 0 18 18"><polygon points="9,1 17,16 1,16" fill="#00bfff" stroke="#fff" stroke-width="1.5"/></svg></div>
+        <div class="triangle sell" style="left:130px;top:130px"><svg viewBox="0 0 18 18"><polygon points="1,1 17,1 9,16" fill="#ff4444" stroke="#fff" stroke-width="1.5"/></svg></div>
+      </div>
+      <div class="legend">
+        <span class="l-b">black up</span>
+        <span class="l-w">white down</span>
+        <span class="l-buy">buy ▲</span>
+        <span class="l-sell">sell ▼</span>
+      </div>
+      <div class="verdict">Teal complements cyan buy triangle (same family) and contrasts red. <strong>Black reads as on, white as off — clean separation.</strong></div>
+    </div>
+
+    <!-- 5. Olive green -->
+    <div class="card">
+      <div class="card-head"><span class="name">E · Olive green</span><span class="hex">#1a2018</span></div>
+      <div class="canvas-wrap" style="background:#1a2018">
+        <div class="chart-area">
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+        </div>
+        <div class="triangle buy" style="left:70px;top:80px"><svg viewBox="0 0 18 18"><polygon points="9,1 17,16 1,16" fill="#00bfff" stroke="#fff" stroke-width="1.5"/></svg></div>
+        <div class="triangle sell" style="left:130px;top:130px"><svg viewBox="0 0 18 18"><polygon points="1,1 17,1 9,16" fill="#ff4444" stroke="#fff" stroke-width="1.5"/></svg></div>
+      </div>
+      <div class="legend">
+        <span class="l-b">black up</span>
+        <span class="l-w">white down</span>
+        <span class="l-buy">buy ▲</span>
+        <span class="l-sell">sell ▼</span>
+      </div>
+      <div class="verdict">Trading-terminal "Matrix" feel. <strong>Both candles contrast well.</strong> Conflicting vibe with cyan triangle.</div>
+    </div>
+
+    <!-- 6. Warm gray -->
+    <div class="card">
+      <div class="card-head"><span class="name">F · Warm gray</span><span class="hex">#1f1d1a</span></div>
+      <div class="canvas-wrap" style="background:#1f1d1a">
+        <div class="chart-area">
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle white"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+          <div class="candle black"><div class="wick"></div><div class="body"></div><div class="wick"></div></div>
+        </div>
+        <div class="triangle buy" style="left:70px;top:80px"><svg viewBox="0 0 18 18"><polygon points="9,1 17,16 1,16" fill="#00bfff" stroke="#fff" stroke-width="1.5"/></svg></div>
+        <div class="triangle sell" style="left:130px;top:130px"><svg viewBox="0 0 18 18"><polygon points="1,1 17,1 9,16" fill="#ff4444" stroke="#fff" stroke-width="1.5"/></svg></div>
+      </div>
+      <div class="legend">
+        <span class="l-b">black up</span>
+        <span class="l-w">white down</span>
+        <span class="l-buy">buy ▲</span>
+        <span class="l-sell">sell ▼</span>
+      </div>
+      <div class="verdict">Editorial/paper-like, <strong>less "trading screen" feeling.</strong></div>
+    </div>
+  </div>
+
+  <p style="max-width:1600px;margin:32px auto 0;color:#666;font-size:12px;">
+    All variants shown with the same B/W candles and neon triangles. Pick the one whose bg you find least distracting while keeping both candle colors readable.
+  </p>
+</body>
+</html>

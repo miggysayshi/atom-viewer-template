@@ -1,0 +1,140 @@
+<!-- Concept 03: R-Multiple Hero — huge R as centerpiece, everything subordinated -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Concept 03 — R-Multiple Hero</title>
+<style>
+  :root{
+    --bg:#1a2018;
+    --surface:#222b1f;
+    --surface2:#2a3424;
+    --border:#3a4632;
+    --text:#e8e8e8;
+    --muted:#8a9486;
+    --dim:#5e6657;
+    --orange:#ff682c;
+    --buy:#00bfff;
+    --sell:#ff4444;
+    --green:#22c55e;
+    --red:#ef4444;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(ellipse at top,#222b1f 0%,#1a2018 40%,#141a12 100%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,sans-serif;padding:24px;min-height:100vh}
+  .title{width:760px;margin:0 auto 8px;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+  .title b{color:var(--orange)}
+  .panel{width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;position:relative}
+  /* Top header strip */
+  .strip{display:flex;justify-content:space-between;align-items:center;padding:14px 22px;background:linear-gradient(90deg,#1c2418,#222b1f);border-bottom:1px solid var(--border)}
+  .strip .id{display:flex;align-items:baseline;gap:10px}
+  .strip .id .t{font-size:22px;font-weight:800;letter-spacing:-.01em}
+  .strip .id .d{font-size:12px;color:var(--muted)}
+  .strip .dir{font-size:11px;font-weight:700;letter-spacing:.14em;padding:5px 12px;border-radius:6px}
+  .strip .dir.long{color:var(--buy);background:rgba(0,191,255,.1);border:1px solid rgba(0,191,255,.3)}
+  .strip .dir.short{color:var(--sell);background:rgba(255,68,68,.1);border:1px solid rgba(255,68,68,.3)}
+  /* Hero R */
+  .hero{padding:38px 22px 22px;text-align:center;position:relative;background:linear-gradient(180deg,#1a2018 0%,#222b1f 100%)}
+  .hero::before{content:"";position:absolute;left:50%;top:0;width:1px;height:24px;background:linear-gradient(180deg,transparent,var(--orange))}
+  .hero .label{font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .hero .r{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:148px;font-weight:800;line-height:.95;letter-spacing:-.05em;margin:8px 0 6px;background:linear-gradient(180deg,#ff8580 0%,#ef4444 100%);-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block;position:relative}
+  .hero .r .unit{font-size:64px;font-weight:700;vertical-align:super;margin-left:-6px;background:linear-gradient(180deg,#ff8580,#ef4444);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero .pct{font-size:14px;color:var(--red);font-weight:700;letter-spacing:.06em}
+  .hero .pct .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red);margin-right:6px;vertical-align:middle;box-shadow:0 0 6px var(--red)}
+  .hero .sub{font-size:12px;color:var(--muted);margin-top:8px}
+  .hero .sub b{color:var(--text);font-weight:600}
+  /* Progress bar: how far through to target */
+  .meter{height:6px;background:rgba(255,255,255,.06);border-radius:3px;margin:18px 40px 0;position:relative;overflow:hidden}
+  .meter .fill{position:absolute;left:50%;top:0;bottom:0;background:linear-gradient(90deg,var(--red),#ff8580);width:2%;border-radius:3px}
+  .meter .zero{position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--muted)}
+  .meter .lbl{position:absolute;top:8px;font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;transform:translateX(-50%)}
+  .meter .lbl.sl{left:0}
+  .meter .lbl.en{left:50%;transform:translateX(-50%)}
+  .meter .lbl.tg{right:0;transform:translateX(50%)}
+  /* Sub stat grid */
+  .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);margin-top:24px;border-top:1px solid var(--border)}
+  .stat{background:var(--surface);padding:12px 8px;text-align:center}
+  .stat .k{font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase}
+  .stat .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:4px}
+  .stat .v.pos{color:var(--green)}
+  .stat .v.neg{color:var(--red)}
+  .stat .v.acc{color:var(--orange)}
+  .stat .sub{font-size:9px;color:var(--muted);margin-top:2px}
+  /* Footer */
+  .foot{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border-top:1px solid var(--border)}
+  .foot .cell{background:var(--surface);padding:10px 18px;font-size:11px;color:var(--muted);line-height:1.5}
+  .foot .cell b{color:var(--text);font-weight:600}
+  .foot .cell .lbl{display:block;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);margin-bottom:3px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="title">// Concept <b>03</b> — R-Multiple Hero &nbsp;·&nbsp; 148px R as centerpiece &nbsp;·&nbsp; subordinated detail &nbsp;·&nbsp; gradient</div>
+
+<div class="panel">
+  <div class="strip">
+    <div class="id">
+      <div class="t">SPY</div>
+      <div class="d">Tue, Jun 30 2026 &nbsp;·&nbsp; 15m ORB</div>
+    </div>
+    <div class="dir long">▲ LONG</div>
+  </div>
+
+  <div class="hero">
+    <div class="label">R-Multiple</div>
+    <div class="r">-0.21<span class="unit">R</span></div>
+    <div class="pct"><span class="dot"></span>-$0.58 · -0.08%</div>
+    <div class="sub">Lost <b>0.21×</b> the planned risk of <b>$2.80 / share</b></div>
+    <div class="meter">
+      <div class="fill"></div>
+      <div class="zero"></div>
+      <div class="lbl sl">Stop 726.86</div>
+      <div class="lbl en">Entry 729.66</div>
+      <div class="lbl tg">Target 738.06</div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="k">Entry</div>
+      <div class="v">729.66</div>
+      <div class="sub">09:45 ET</div>
+    </div>
+    <div class="stat">
+      <div class="k">Exit</div>
+      <div class="v neg">729.08</div>
+      <div class="sub">15:55 ET</div>
+    </div>
+    <div class="stat">
+      <div class="k">Duration</div>
+      <div class="v" style="color:#fff">6h 10m</div>
+      <div class="sub">370 min</div>
+    </div>
+    <div class="stat">
+      <div class="k">Size</div>
+      <div class="v" style="color:#fff">100</div>
+      <div class="sub">shares</div>
+    </div>
+    <div class="stat">
+      <div class="k">MFE</div>
+      <div class="v pos">+1.86</div>
+      <div class="sub">peak</div>
+    </div>
+    <div class="stat">
+      <div class="k">MAE</div>
+      <div class="v neg">-2.80</div>
+      <div class="sub">trough</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="cell">
+      <span class="lbl">Reason for Entry</span>
+      ORB breakout above 15m OR high <b>$729.78</b> at 09:45 ET.
+    </div>
+    <div class="cell">
+      <span class="lbl">Reason for Exit</span>
+      End of day — target <b>$738.06</b> not hit, stop <b>$726.86</b> not hit, position closed at 15:55.
+    </div>
+  </div>
+</div>
+</body>
+</html>

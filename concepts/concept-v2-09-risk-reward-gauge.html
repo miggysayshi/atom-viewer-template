@@ -1,0 +1,379 @@
+<!-- Concept 09: Risk/Reward Gauge — visual gauge stop vs entry vs target with current price marker -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Concept 09 — Risk/Reward Gauge (v2)</title>
+<style>
+  :root{
+    --bg:#1a2018;
+    --surface:#222b1f;
+    --surface2:#1c2418;
+    --border:#3a4632;
+    --text:#e8e8e8;
+    --muted:#8a9486;
+    --dim:#5e6657;
+    --orange:#ff682c;
+    --buy:#00bfff;
+    --sell:#ff4444;
+    --green:#22c55e;
+    --red:#ef4444;
+    --yellow:#eab308;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(ellipse at center top,#222b1f 0%,#1a2018 50%,#141a12 100%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,sans-serif;padding:24px;min-height:100vh}
+  .title{width:760px;margin:0 auto 8px;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+  .title b{color:var(--orange)}
+  .panel{width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  /* Header */
+  .hdr{display:grid;grid-template-columns:1fr auto auto;gap:18px;align-items:center;padding:14px 20px;background:linear-gradient(135deg,#1c2418,#222b1f);border-bottom:1px solid var(--border)}
+  .hdr h1{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .hdr h1 .sub{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:3px;letter-spacing:.06em}
+  .dir{font-size:11px;font-weight:800;letter-spacing:.14em;padding:6px 14px;border-radius:6px}
+  .dir.long{color:var(--buy);background:rgba(0,191,255,.1);border:1px solid rgba(0,191,255,.3)}
+  .pnl{text-align:right}
+  .pnl .amt{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .pnl .amt.neg{color:var(--red)}
+  .pnl .pct{font-size:11px;color:var(--red);font-weight:600;margin-top:2px}
+  /* Gauge */
+  .gauge{padding:24px 24px 18px;background:linear-gradient(180deg,#1a2018,#222b1f);position:relative}
+  .gauge h2{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:18px}
+  .gauge h2 b{color:var(--orange)}
+  /* Horizontal price ruler */
+  .ruler{position:relative;height:140px;margin:0 8px}
+  .ruler .track{position:absolute;left:0;right:0;top:42px;height:14px;border-radius:7px;background:linear-gradient(90deg,#ef4444 0%,#ef4444 25%,#5e6657 33%,#222b1f 33%,#222b1f 50%,#5e6657 67%,#22c55e 67%,#22c55e 100%);border:1px solid var(--border)}
+  .ruler .zone-stop{position:absolute;left:0;right:67%;top:38px;height:22px;background:rgba(239,68,68,0.08);border:1px dashed rgba(239,68,68,0.4);border-radius:4px}
+  .ruler .zone-target{position:absolute;left:67%;right:0;top:38px;height:22px;background:rgba(34,197,94,0.08);border:1px dashed rgba(34,197,94,0.4);border-radius:4px}
+  .ruler .zone-actual{position:absolute;left:67%;right:32%;top:38px;height:22px;background:rgba(255,104,44,0.18);border-top:1px solid var(--orange);border-bottom:1px solid var(--orange)}
+  /* Price markers as notches */
+  .ruler .tick{position:absolute;top:24px;width:2px;height:8px;background:var(--muted);transform:translateX(-50%)}
+  .ruler .tick.major{height:12px;background:#fff;top:20px}
+  .ruler .tick-lbl{position:absolute;top:8px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);transform:translateX(-50%);white-space:nowrap}
+  /* Pins (stop, entry, target, actual) */
+  .ruler .pin{position:absolute;top:62px;width:2px;height:60px;transform:translateX(-50%)}
+  .ruler .pin::before{content:"";position:absolute;left:50%;transform:translateX(-50%);width:14px;height:14px;border-radius:50%;background:currentColor;top:-6px;box-shadow:0 0 0 4px var(--surface),0 0 0 5px currentColor,0 0 10px currentColor}
+  .ruler .pin .lbl{position:absolute;left:50%;top:18px;transform:translateX(-50%);background:var(--surface);border:1px solid currentColor;color:#fff;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;white-space:nowrap}
+  .ruler .pin .lbl small{display:block;font-size:8px;color:var(--muted);font-weight:500;letter-spacing:.1em;text-transform:uppercase;margin-top:1px}
+  .ruler .pin.stop{left:0%;color:var(--red)}
+  .ruler .pin.target{left:100%;color:var(--green)}
+  .ruler .pin.entry{left:25%;color:var(--buy)}
+  .ruler .pin.actual{left:30.5%;color:var(--orange);height:80px;z-index:2}
+  .ruler .pin.actual::before{width:18px;height:18px;top:-8px}
+  /* Connection labels on bottom */
+  .ruler .dim-line{position:absolute;left:0;right:0;top:128px;height:1px;background:linear-gradient(90deg,transparent,var(--border) 5%,var(--border) 95%,transparent)}
+  .ruler .dim-stop{position:absolute;left:0;width:25%;top:130px;text-align:center}
+  .ruler .dim-target{position:absolute;left:75%;width:25%;top:130px;text-align:center}
+  .ruler .dim-stop .v{font-size:14px;font-weight:700;color:var(--red);font-family:'JetBrains Mono',monospace}
+  .ruler .dim-stop .k{font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+  .ruler .dim-target .v{font-size:14px;font-weight:700;color:var(--green);font-family:'JetBrains Mono',monospace}
+  .ruler .dim-target .k{font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+  /* Stats below gauge */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-top:1px solid var(--border)}
+  .stat{background:var(--surface);padding:12px 16px}
+  .stat .k{font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;font-weight:600}
+  .stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:3px;line-height:1}
+  .stat .v.pos{color:var(--green)}
+  .stat .v.neg{color:var(--red)}
+  .stat .v.acc{color:var(--orange)}
+  .stat .v.buy-c{color:var(--buy)}
+  .stat .v.sell-c{color:var(--sell)}
+  .stat .sub{font-size:10px;color:var(--muted);margin-top:3px}
+  /* Mini checklist */
+  .check{padding:14px 20px;background:var(--surface2);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,1fr);gap:18px;font-size:11px}
+  .check .it{display:flex;gap:10px;align-items:flex-start}
+  .check .ic{width:22px;height:22px;border-radius:5px;background:rgba(255,104,44,.15);color:var(--orange);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0}
+  .check .ic.ok{background:rgba(34,197,94,.15);color:var(--green)}
+  .check .ic.warn{background:rgba(234,179,8,.15);color:var(--yellow)}
+  .check .ic.bad{background:rgba(239,68,68,.15);color:var(--red)}
+  .check .lbl b{color:#fff;font-weight:700;display:block;font-size:12px;margin-bottom:1px}
+  .check .lbl{color:var(--muted);line-height:1.4}
+  /* Footer */
+  .foot{padding:12px 20px;background:var(--surface2);border-top:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.5}
+  .foot b{color:var(--text);font-weight:600}
+  .foot code{font-family:'JetBrains Mono',monospace;color:#fff;background:rgba(255,255,255,.04);padding:1px 5px;border-radius:3px;font-size:10.5px}
+</style>
+<script src="https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<!-- v2: Chart on top -->
+<div class="v2-chart-frame">
+  <div class="v2-chart-header">
+    <span class="v2-chart-title">SPY · Tue Jun 30 2026 · 5m · Long EOD scratch</span>
+    <span class="v2-chart-legend">
+      <span class="lg lg-orh">OR H 729.78</span>
+      <span class="lg lg-orl">OR L 726.86</span>
+      <span class="lg lg-stop">Stop 726.86</span>
+      <span class="lg lg-tgt">Target 738.06</span>
+      <span class="lg lg-entry">▲ Entry 729.66</span>
+      <span class="lg lg-exit">▼ Exit 729.08</span>
+    </span>
+  </div>
+  <div id="v2-chart" class="v2-chart"></div>
+  <div class="v2-chart-foot">Olive bg #1a2018 · gray-up / white-down candles · premarket (translucent white) · after-hours (translucent black) · OR lines dashed · cyan ↑ / red ↓</div>
+</div>
+
+<script>
+const bars = [
+  {time: 1782488400, open: 727.0, high: 727.5, low: 726.8, close: 727.2, volume: 1.2e6, session: 'pre'},
+  {time: 1782490200, open: 727.2, high: 727.8, low: 727.0, close: 727.5, volume: 1.4e6, session: 'pre'},
+  {time: 1782492000, open: 727.5, high: 728.0, low: 727.3, close: 727.7, volume: 1.6e6, session: 'pre'},
+  {time: 1782493800, open: 727.7, high: 728.2, low: 727.5, close: 728.0, volume: 1.8e6, session: 'pre'},
+  {time: 1782495600, open: 728.0, high: 728.5, low: 727.8, close: 728.3, volume: 2.1e6, session: 'pre'},
+  {time: 1782497400, open: 728.3, high: 729.0, low: 728.2, close: 728.9, volume: 2.5e6, session: 'pre'},
+  {time: 1782499200, open: 728.9, high: 729.5, low: 728.7, close: 729.3, volume: 3.1e6, session: 'pre'},
+  {time: 1782501000, open: 729.3, high: 729.8, low: 729.2, close: 729.6, volume: 3.7e6, session: 'pre'},
+  {time: 1782502800, open: 729.6, high: 729.78, low: 726.86, close: 727.5, volume: 4.2e6, session: 'rth'},
+  {time: 1782504600, open: 727.5, high: 729.7, low: 727.0, close: 729.66, volume: 5.1e6, session: 'rth'},
+  {time: 1782507300, open: 729.66, high: 731.5, low: 729.5, close: 731.52, volume: 6.8e6, session: 'rth'},
+  {time: 1782509100, open: 731.5, high: 732.0, low: 730.8, close: 731.0, volume: 5.4e6, session: 'rth'},
+  {time: 1782510900, open: 731.0, high: 731.2, low: 729.0, close: 729.2, volume: 4.9e6, session: 'rth'},
+  {time: 1782512700, open: 729.2, high: 729.5, low: 727.5, close: 727.7, volume: 4.2e6, session: 'rth'},
+  {time: 1782514500, open: 727.7, high: 728.5, low: 727.0, close: 728.4, volume: 3.7e6, session: 'rth'},
+  {time: 1782516300, open: 728.4, high: 729.0, low: 727.8, close: 728.8, volume: 3.1e6, session: 'rth'},
+  {time: 1782518100, open: 728.8, high: 729.2, low: 728.0, close: 728.2, volume: 2.8e6, session: 'rth'},
+  {time: 1782519900, open: 728.2, high: 728.6, low: 727.5, close: 727.6, volume: 2.4e6, session: 'rth'},
+  {time: 1782521700, open: 727.6, high: 728.0, low: 726.86, close: 727.0, volume: 2.1e6, session: 'rth'},
+  {time: 1782523500, open: 727.0, high: 727.5, low: 726.5, close: 726.6, volume: 2.4e6, session: 'rth'},
+  {time: 1782525300, open: 726.6, high: 727.0, low: 725.5, close: 725.8, volume: 2.9e6, session: 'rth'},
+  {time: 1782527100, open: 725.8, high: 727.5, low: 725.5, close: 727.4, volume: 3.5e6, session: 'rth'},
+  {time: 1782528900, open: 727.4, high: 728.5, low: 727.2, close: 728.4, volume: 4.0e6, session: 'rth'},
+  {time: 1782530700, open: 728.4, high: 729.4, low: 728.2, close: 729.2, volume: 4.6e6, session: 'rth'},
+  {time: 1782531900, open: 729.2, high: 729.5, low: 728.9, close: 729.08, volume: 5.3e6, session: 'rth'},
+  {time: 1782533400, open: 729.1, high: 729.3, low: 728.8, close: 729.0, volume: 1.5e6, session: 'post'},
+  {time: 1782535200, open: 729.0, high: 729.2, low: 728.7, close: 728.8, volume: 1.2e6, session: 'post'},
+  {time: 1782537000, open: 728.8, high: 729.0, low: 728.5, close: 728.6, volume: 9.5e5, session: 'post'},
+  {time: 1782538800, open: 728.6, high: 728.9, low: 728.4, close: 728.5, volume: 7.8e5, session: 'post'},
+  {time: 1782540600, open: 728.5, high: 728.7, low: 728.3, close: 728.4, volume: 6.2e5, session: 'post'},
+  {time: 1782542400, open: 728.4, high: 728.6, low: 728.2, close: 728.3, volume: 4.9e5, session: 'post'},
+  {time: 1782544200, open: 728.3, high: 728.5, low: 728.1, close: 728.2, volume: 3.8e5, session: 'post'},
+  {time: 1782546000, open: 728.2, high: 728.4, low: 728.0, close: 728.1, volume: 2.9e5, session: 'post'},
+];
+const TRADE = {
+  entry_ts: 1782507300, exit_ts: 1782531900,
+  entry: 729.66, exit: 729.08,
+  stop: 726.86, target: 738.06,
+  or_high: 729.78, or_low: 726.86,
+};
+(function renderV2Chart() {
+  const container = document.getElementById('v2-chart');
+  if (!container) return;
+  const { createChart, CandlestickSeries, HistogramSeries, LineStyle } = LightweightCharts;
+  const chart = createChart(container, {
+    autoSize: true,
+    layout: { background: { type: 'solid', color: '#1a2018' }, textColor: '#7a8595', fontSize: 10 },
+    grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+    rightPriceScale: { borderColor: '#333', scaleMargins: { top: 0.08, bottom: 0.22 } },
+    timeScale: { borderColor: '#333', timeVisible: true, secondsVisible: false, rightOffset: 2 },
+    crosshair: { mode: 0 },
+  });
+  const candle = chart.addSeries(CandlestickSeries, {
+    upColor: '#6a6a6a', downColor: '#f0f0f0',
+    borderUpColor: '#6a6a6a', borderDownColor: '#f0f0f0',
+    wickUpColor: '#333333', wickDownColor: '#aaaaaa',
+  });
+  candle.setData(bars.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
+  const vol = chart.addSeries(HistogramSeries, {
+    priceFormat: { type: 'volume' }, priceScaleId: 'vol', color: '#333',
+  });
+  chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+  vol.setData(bars.map(b => ({
+    time: b.time, value: b.volume,
+    color: b.close >= b.open ? 'rgba(15,143,97,0.3)' : 'rgba(201,74,53,0.3)',
+  })));
+  // OR lines
+  candle.createPriceLine({ price: TRADE.or_high, color: 'rgba(34,197,94,0.5)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'OR H 729.78' });
+  candle.createPriceLine({ price: TRADE.or_low,  color: 'rgba(239,68,68,0.5)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'OR L 726.86' });
+  // Stop & Target
+  candle.createPriceLine({ price: TRADE.stop,   color: '#ff4444', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Stop 726.86' });
+  candle.createPriceLine({ price: TRADE.target, color: '#22c55e', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Target 738.06' });
+  // Entry / exit markers as separate series using line series for arrows
+  const entryMarker = chart.addSeries(LightweightCharts.SeriesType ? null : (typeof LightweightCharts === 'object' ? null : null) );
+  // Use markers plugin via createSeriesMarkers if available; otherwise inline arrow via LineSeries
+  // v5 standalone: markers via createSeriesMarkers
+  if (typeof LightweightCharts.createSeriesMarkers === 'function') {
+    LightweightCharts.createSeriesMarkers(candle, [
+      { time: TRADE.entry_ts, position: 'belowBar', color: '#00bfff', shape: 'arrowUp', text: 'Entry 729.66 @ 09:45' },
+      { time: TRADE.exit_ts,  position: 'aboveBar', color: '#ff4444', shape: 'arrowDown', text: 'Exit 729.08 @ 15:55' },
+    ]);
+  } else {
+    // Fallback: tag via setMarkers / series markers accessor
+    try {
+      candle.setMarkers && candle.setMarkers([
+        { time: TRADE.entry_ts, position: 'belowBar', color: '#00bfff', shape: 'arrowUp', text: 'Entry 729.66' },
+        { time: TRADE.exit_ts,  position: 'aboveBar', color: '#ff4444', shape: 'arrowDown', text: 'Exit 729.08' },
+      ]);
+    } catch (e) {}
+  }
+  // Session overlays (premarket / after-hours translucent washes)
+  const pmBars = bars.filter(b => b.session === 'pre');
+  const postBars = bars.filter(b => b.session === 'post');
+  let pmOverlay = null, postOverlay = null;
+  if (pmBars.length >= 2) {
+    pmOverlay = document.createElement('div');
+    pmOverlay.style.cssText = 'position:absolute;top:0;bottom:0;background:rgba(255,255,255,0.08);pointer-events:none;z-index:1;display:none;';
+    container.appendChild(pmOverlay);
+  }
+  if (postBars.length >= 2) {
+    postOverlay = document.createElement('div');
+    postOverlay.style.cssText = 'position:absolute;top:0;bottom:0;background:rgba(0,0,0,0.30);pointer-events:none;z-index:1;display:none;';
+    container.appendChild(postOverlay);
+  }
+  function measureBarWidth(bs) {
+    if (bs.length < 2) return 0;
+    const t1 = chart.timeScale().timeToCoordinate(bs[0].time);
+    const t2 = chart.timeScale().timeToCoordinate(bs[1].time);
+    if (t1 == null || t2 == null) return 0;
+    return Math.abs(t2 - t1);
+  }
+  function positionOverlay(overlay, bs) {
+    if (!overlay || bs.length < 2) { if (overlay) overlay.style.display = 'none'; return; }
+    const firstX = chart.timeScale().timeToCoordinate(bs[0].time);
+    const lastX = chart.timeScale().timeToCoordinate(bs[bs.length - 1].time);
+    if (firstX == null || lastX == null) { overlay.style.display = 'none'; return; }
+    const w = Math.max(0, lastX + measureBarWidth(bs) - firstX);
+    if (w === 0) { overlay.style.display = 'none'; return; }
+    overlay.style.display = 'block';
+    overlay.style.left = firstX + 'px';
+    overlay.style.width = w + 'px';
+  }
+  function updateAll() {
+    positionOverlay(pmOverlay, pmBars);
+    positionOverlay(postOverlay, postBars);
+  }
+  updateAll();
+  chart.timeScale().subscribeVisibleTimeRangeChange(updateAll);
+  chart.timeScale().fitContent();
+})();
+</script>
+
+<style>
+/* v2 chart frame styles — charts depend on .v2-chart-frame being
+   position:relative so the absolutely-positioned overlays line up. */
+.v2-chart-frame{
+  width:760px;margin:0 auto 16px;background:var(--surface,#222b1f);
+  border:1px solid var(--border,#3a4632);border-radius:10px;
+  overflow:hidden;font-family:inherit;
+}
+.v2-chart-header{
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;
+  padding:8px 14px;background:linear-gradient(90deg,#161c14,#1a2018);
+  border-bottom:1px solid var(--orange,#ff682c);
+}
+.v2-chart-title{font-size:12px;font-weight:700;color:#fff;letter-spacing:.04em}
+.v2-chart-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:10px;color:var(--muted,#8a9486);font-family:ui-monospace,monospace}
+.v2-chart-legend .lg{white-space:nowrap}
+.v2-chart-legend .lg-orh{color:#22c55e}
+.v2-chart-legend .lg-orl{color:#ef4444}
+.v2-chart-legend .lg-stop{color:#ff4444}
+.v2-chart-legend .lg-tgt{color:#22c55e}
+.v2-chart-legend .lg-entry{color:#00bfff}
+.v2-chart-legend .lg-exit{color:#ff4444}
+.v2-chart{position:relative;width:100%;height:240px}
+.v2-chart-foot{padding:6px 14px;background:#0f130d;border-top:1px solid var(--border,#3a4632);font-size:10px;color:var(--muted,#7a8478);letter-spacing:.06em}
+</style>
+
+<div class="title">// Concept <b>09</b> — Risk/Reward Gauge &nbsp;·&nbsp; horizontal price ruler &nbsp;·&nbsp; stop→entry→actual→target &nbsp;·&nbsp; visual</div>
+
+<div class="panel">
+  <div class="hdr">
+    <h1>SPY <span style="color:var(--orange)">·</span> Risk / Reward Gauge
+      <span class="sub">Tue Jun 30 2026 &nbsp;·&nbsp; 15m ORB · LONG</span>
+    </h1>
+    <div class="dir long">▲ LONG</div>
+    <div class="pnl">
+      <div class="amt neg">-$0.58</div>
+      <div class="pct">-0.0795%</div>
+    </div>
+  </div>
+
+  <div class="gauge">
+    <h2>Price Ladder &nbsp;·&nbsp; <b>Stop</b> → <b>Entry</b> → <b>Actual</b> → <b>Target</b></h2>
+
+    <div class="ruler">
+      <div class="zone-stop"></div>
+      <div class="zone-target"></div>
+      <div class="track"></div>
+
+      <!-- Top price labels (ruler) -->
+      <div class="tick-lbl" style="left:0%">726.86</div>
+      <div class="tick" style="left:0%"></div>
+      <div class="tick-lbl" style="left:25%">729.66</div>
+      <div class="tick" style="left:25%"></div>
+      <div class="tick-lbl" style="left:30.5%;color:var(--orange)">729.08</div>
+      <div class="tick major" style="left:30.5%;background:var(--orange)"></div>
+      <div class="tick-lbl" style="left:50%;color:var(--muted)">mid 732.46</div>
+      <div class="tick" style="left:50%"></div>
+      <div class="tick-lbl" style="left:100%">738.06</div>
+      <div class="tick" style="left:100%"></div>
+
+      <!-- Pins -->
+      <div class="pin stop">
+        <div class="lbl">STOP<small>726.86</small></div>
+      </div>
+      <div class="pin entry">
+        <div class="lbl">ENTRY<small>729.66 · 09:45</small></div>
+      </div>
+      <div class="pin actual">
+        <div class="lbl">ACTUAL<small>729.08 · 15:55</small></div>
+      </div>
+      <div class="pin target">
+        <div class="lbl">TARGET<small>738.06</small></div>
+      </div>
+
+      <!-- Distance dim line -->
+      <div class="dim-line"></div>
+      <div class="dim-stop">
+        <div class="v">2.80</div>
+        <div class="k">Risk (pts)</div>
+      </div>
+      <div class="dim-target">
+        <div class="v">8.40</div>
+        <div class="k">Reward (pts)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="k">R-Multiple</div>
+      <div class="v neg">-0.21R</div>
+      <div class="sub">lost 0.21× risk</div>
+    </div>
+    <div class="stat">
+      <div class="k">Fill Distance</div>
+      <div class="v" style="color:#fff">0.58</div>
+      <div class="sub">below entry</div>
+    </div>
+    <div class="stat">
+      <div class="k">Path to Target</div>
+      <div class="v acc">93.1%</div>
+      <div class="sub">remaining</div>
+    </div>
+    <div class="stat">
+      <div class="k">Time in Trade</div>
+      <div class="v" style="color:#fff">6h 10m</div>
+      <div class="sub">09:45 → 15:55</div>
+    </div>
+  </div>
+
+  <div class="check">
+    <div class="it">
+      <div class="ic ok">✓</div>
+      <div class="lbl"><b>Setup valid</b>15m ORB broke out above $729.78 with volume</div>
+    </div>
+    <div class="it">
+      <div class="ic warn">!</div>
+      <div class="lbl"><b>Trail missed</b>MFE reached +1.66R before fading — trail to BE could have saved it</div>
+    </div>
+    <div class="it">
+      <div class="ic bad">×</div>
+      <div class="lbl"><b>Target missed</b>Closed EOD 8.98 pts short of target — momentum expired</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    Entered <code>LONG 729.66</code> on 15m ORB breakout. Stop <code>726.86</code> · Target <code>738.06</code>. Closed EOD at <code>729.08</code> for <b>-0.21R</b>.
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>10 compact chart menu sketches</title>
+  <style>
+    :root{
+      --paper:#f4f1ea; --panel:#fffdf8; --ink:#202020; --muted:#827b70; --line:#d7d0c3;
+      --black:#171717; --black2:#222; --black3:#303030; --text:#eee; --dim:#969696;
+      --orange:#ff682c; --green:#0f8f61; --red:#c94a35; --blue:#5f8cff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    *{box-sizing:border-box} body{margin:0;background:var(--paper);color:var(--ink)}
+    main{width:min(1440px,calc(100vw - 28px));margin:18px auto 48px;display:grid;gap:18px}
+    header{display:flex;justify-content:space-between;gap:20px;align-items:end;padding:18px 20px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 28px rgba(32,32,32,.06)}
+    h1{margin:0;font-size:34px;letter-spacing:-.04em;line-height:.95} .lede{margin:6px 0 0;color:var(--muted);max-width:780px}.rank{font-size:12px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1fr;gap:18px}.variant{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;box-shadow:0 10px 28px rgba(32,32,32,.05)}
+    .vtop{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 10px}.vtop h2{margin:0;font-size:17px;letter-spacing:-.02em}.vtop p{margin:2px 0 0;font-size:12px;color:var(--muted)}.score{font-size:11px;color:var(--muted)}
+    .app{display:grid;grid-template-columns:minmax(0,1fr) 286px;gap:12px}.chart{height:310px;position:relative;overflow:hidden;border-radius:12px;background:#fff;border:1px solid #e2dccf}.panel{height:310px;border-radius:12px;background:var(--black);color:var(--text);padding:12px;display:grid;align-content:start;gap:10px;font-size:12px}
+    .panel .tag{display:inline-flex;width:max-content;border-radius:999px;padding:3px 8px;background:rgba(15,143,97,.22);color:#4ee093;font-weight:800;font-size:10px;letter-spacing:.06em}.panel h3{margin:0;font-size:15px}.panel .row{display:flex;justify-content:space-between;color:var(--dim);border-bottom:1px solid #2e2e2e;padding-bottom:5px}.panel .row b{color:var(--text)}
+    .fake-candles{position:absolute;inset:52px 14px 24px 14px;background:linear-gradient(to right,transparent 0 9%,rgba(32,32,32,.04) 9.3%,transparent 9.6%),linear-gradient(to bottom,transparent 0 24%,rgba(32,32,32,.05) 24.3%,transparent 24.6%);background-size:72px 100%,100% 48px}.candle{position:absolute;width:8px;border-radius:2px}.candle:before{content:"";position:absolute;left:3px;width:2px;background:currentColor;top:-12px;height:34px;opacity:.8}.up{background:var(--green);color:var(--green)}.dn{background:var(--red);color:var(--red)}
+    .marker{position:absolute;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;z-index:3}.buy{border-bottom:13px solid var(--green)}.sell{border-top:13px solid var(--red)}
+    .menu{position:absolute;left:10px;right:10px;top:10px;z-index:5;display:flex;align-items:center;gap:6px;min-height:34px;color:var(--text);font-size:12px}.menu *{white-space:nowrap}.field,.pill,.icon,.seg,.dd{height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid rgba(255,255,255,.13);background:rgba(30,30,30,.92);color:var(--text);padding:0 10px;font-weight:700}.field{width:76px;letter-spacing:.06em;color:#fff}.dd{gap:5px;color:#dcdcdc}.dd:after{content:"⌄";font-size:10px;color:var(--dim);transform:translateY(-1px)}.icon{width:30px;padding:0}.icon svg{width:14px;height:14px}.seg{gap:2px;padding:3px}.seg span{height:22px;display:inline-flex;align-items:center;border-radius:999px;padding:0 8px;color:var(--dim)}.seg .on{background:#fff;color:#171717}.sep{width:1px;height:22px;background:rgba(255,255,255,.16);margin:0 2px}.grow{flex:1}.hot{background:var(--orange)!important;color:#fff!important;border-color:var(--orange)!important}.ghost{background:rgba(255,255,255,.72);color:#222;border-color:rgba(32,32,32,.08);backdrop-filter:blur(10px)}
+    .menu.v2{right:auto;width:max-content;background:rgba(20,20,20,.96);border-radius:999px;padding:4px;box-shadow:0 12px 28px rgba(0,0,0,.22)}
+    .menu.v3{left:50%;right:auto;transform:translateX(-50%);background:#181818;border:1px solid #333;border-radius:8px;padding:4px 6px;box-shadow:0 10px 24px rgba(0,0,0,.18)}.menu.v3 .field,.menu.v3 .dd,.menu.v3 .seg,.menu.v3 .icon{border-radius:6px;background:#242424;border:1px solid #333}
+    .menu.v4{top:0;left:0;right:0;border-radius:12px 12px 0 0;background:#181818;border-bottom:1px solid #333;padding:6px 10px}.menu.v4 .field,.menu.v4 .dd,.menu.v4 .seg,.menu.v4 .icon{background:transparent;border:0;border-radius:6px}.menu.v4 .hot{background:rgba(255,104,44,.18)!important;color:#ff9a73!important}
+    .menu.v5{top:12px;left:12px;right:12px;background:rgba(255,253,248,.80);backdrop-filter:blur(14px);border:1px solid rgba(32,32,32,.08);border-radius:12px;padding:5px 6px;color:#222}.menu.v5 .field,.menu.v5 .dd,.menu.v5 .seg,.menu.v5 .icon{background:rgba(255,255,255,.70);color:#222;border-color:rgba(32,32,32,.09);border-radius:9px}.menu.v5 .seg .on{background:#202020;color:white}
+    .menu.v6{left:10px;right:10px;background:rgba(20,20,20,.95);border-radius:9px;padding:3px}.menu.v6 .dd{padding:0 7px}.menu.v6 .label{font-size:10px;color:var(--dim);margin-left:6px;margin-right:-2px;text-transform:uppercase;letter-spacing:.08em}.menu.v6 .field,.menu.v6 .dd,.menu.v6 .seg,.menu.v6 .icon{height:26px;border-radius:7px;background:#242424;border-color:#343434}
+    .menu.v7{right:auto;left:10px;background:#111;border:1px solid #2e2e2e;border-radius:999px;padding:4px}.menu.v7 .cluster{display:flex;gap:2px;background:#242424;border-radius:999px;padding:2px}.menu.v7 .cluster>*{background:transparent;border:0}.menu.v7 .field{background:#fff;color:#111}.cluster{display:flex;gap:4px;align-items:center}
+    .menu.v8{top:auto;bottom:10px;left:50%;right:auto;transform:translateX(-50%);background:rgba(20,20,20,.96);border:1px solid #333;border-radius:999px;padding:4px;box-shadow:0 -8px 24px rgba(0,0,0,.18)}
+    .menu.v9{left:10px;right:10px;background:linear-gradient(90deg,#151515,#252525);border:1px solid #353535;border-radius:999px;padding:4px}.menu.v9 .field{background:#fff;color:#151515}.menu.v9 .dd,.menu.v9 .seg,.menu.v9 .icon{background:transparent;border:0}.menu.v9 .metric{margin-left:auto;color:#bdbdbd;font-size:11px}.menu.v9 .metric b{color:#fff}
+    .menu.v10{left:10px;right:auto;max-width:calc(100% - 20px);background:rgba(18,18,18,.96);border:1px solid #333;border-radius:10px;padding:4px;display:grid;grid-template-columns:auto auto auto auto auto auto auto auto auto;grid-auto-flow:column}.menu.v10 .field,.menu.v10 .dd,.menu.v10 .seg,.menu.v10 .icon{height:25px;border-radius:7px;padding:0 8px;background:#242424;border-color:#343434}.tiny{font-size:10px;color:var(--dim);font-weight:800;letter-spacing:.08em}.take{margin-top:10px;font-size:12px;color:var(--muted)}
+    @media(max-width:1000px){.app{grid-template-columns:1fr}.panel{height:auto}.menu{overflow:auto}.variant{padding:10px}}
+  </style>
+</head>
+<body>
+<main>
+  <header><div><h1>10 single-line chart menu sketches.</h1><p class="lede">All options keep controls directly attached to the chart and reserve the right pane for execution details only. These are intentionally compact, power-user-biased.</p></div><div class="rank">My shortlist: 6 → 9 → 5</div></header>
+  <section class="grid" id="grid"></section>
+</main>
+<script>
+const variants = [
+ ['1. Full-width compact rail','Everything in one continuous dark rail; safest migration from current UI.','v1'],
+ ['2. Left floating capsule','Compact floating control island, chart breathes more. Best if details panel is primary.','v2'],
+ ['3. Center command bar','Command-palette feel; elegant but less conventional for trading tools.','v3'],
+ ['4. Attached top chrome','Menu becomes chart chrome. Strongest “2 panes not 3 panes” feeling.','v4'],
+ ['5. Glass overlay','Light translucent menu over chart. Modern, less terminal-like.','v5'],
+ ['6. Dense labeled microbar','My pick: labels only where needed, tiny controls, excellent scan speed.','v6'],
+ ['7. Clustered pills','Clear clusters inside one row. Slightly wider but very understandable.','v7'],
+ ['8. Bottom dock','Still single-line, but keeps top chart clean. Useful if crosshair labels crowd top.','v8'],
+ ['9. Status-integrated rail','Controls + live status in one bar. Feels most like pro software.','v9'],
+ ['10. Ultra micro grid','Maximum density. Best for expert mode, worst for discoverability.','v10'],
+];
+function candles(){let s=''; for(let i=0;i<72;i++){let up=i%3!==0, h=28+((i*17)%110), top=20+((i*29)%145), left=18+i*18; s+=`<i class="candle ${up?'up':'dn'}" style="left:${left}px;top:${top}px;height:${h}px"></i>`} return s}
+function shapeIcons(){return `<button class="icon" title="triangle"><svg viewBox="0 0 18 18"><polygon points="9,3 15,15 3,15" fill="currentColor"/></svg></button><button class="icon" title="diamond"><svg viewBox="0 0 18 18"><polygon points="9,2 16,9 9,16 2,9" fill="currentColor"/></svg></button>`}
+function menu(cls){
+ if(cls==='v6') return `<div class="menu ${cls}"><span class="field">AAPL</span><span class="label">View</span><span class="dd">1Y</span><span class="dd">1D</span><span class="seg"><span class="on">C</span><span>L</span></span><span class="sep"></span><span class="label">Ind</span><span class="pill">SMA</span><span class="pill">EMA</span><span class="pill">VWAP</span><span class="sep"></span><span class="label">Exec</span><span class="dd">All</span>${shapeIcons()}<span class="dd">6%</span><span class="grow"></span><button class="icon">↻</button><button class="icon">⛶</button></div>`;
+ if(cls==='v7') return `<div class="menu ${cls}"><span class="field">AAPL</span><span class="cluster"><span class="dd">1Y</span><span class="dd">1D</span><span class="seg"><span class="on">Candles</span><span>Line</span></span></span><span class="cluster"><span class="pill">SMA</span><span class="pill">VWAP</span></span><span class="cluster"><span class="hot">Trades</span><span class="dd">All</span>${shapeIcons()}<span class="dd">6</span></span></div>`;
+ if(cls==='v9') return `<div class="menu ${cls}"><span class="field">AAPL</span><span class="dd">1Y</span><span class="dd">1D</span><span class="seg"><span class="on">Candle</span><span>Line</span></span><span class="sep"></span><span class="pill">SMA 20/50</span><span class="pill">VWAP</span><span class="sep"></span><span class="hot">Trades</span><span class="dd">All</span>${shapeIcons()}<span class="metric">Last <b>201.01</b> · +2.4%</span></div>`;
+ return `<div class="menu ${cls}"><span class="field">AAPL</span><span class="dd">1Y</span><span class="dd">1D</span><span class="seg"><span class="on">Candles</span><span>Line</span></span><span class="sep"></span><span class="pill">SMA</span><span class="pill">EMA</span><span class="pill">VWAP</span><span class="sep"></span><span class="hot">Trades</span><span class="dd">All</span>${shapeIcons()}<span class="dd">6</span><span class="grow"></span><button class="icon">↻</button><button class="icon">⛶</button></div>`;
+}
+function card(v,i){return `<article class="variant"><div class="vtop"><div><h2>${v[0]}</h2><p>${v[1]}</p></div><div class="score">single row · overlay menu</div></div><div class="app"><div class="chart">${menu(v[2])}<div class="fake-candles">${candles()}<b class="marker buy" style="left:38%;top:62%"></b><b class="marker sell" style="left:64%;top:36%"></b></div></div><aside class="panel"><span class="tag">SELECTED TRADE</span><h3>AAPL short execution</h3><div class="row"><span>Entry</span><b>238.77</b></div><div class="row"><span>Exit</span><b>236.31</b></div><div class="row"><span>Size</span><b>100 shares</b></div><div class="row"><span>P&L</span><b style="color:#4ee093">+2.46</b></div><div class="row"><span>Reason</span><b>Target hit</b></div></aside></div><p class="take"><b>Use when:</b> ${i===5?'we want the production default: dense but still readable.':i===8?'we want live status embedded in the toolbar.':i===4?'we want the least “toolbar pane” feeling.':'we want to test this stance against compactness and readability.'}</p></article>`}
+document.getElementById('grid').innerHTML = variants.map(card).join('');
+</script>
+</body>
+</html>

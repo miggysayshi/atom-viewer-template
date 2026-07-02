@@ -1,0 +1,1082 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ORB Strategy — Opening Range Breakout</title>
+<script src="https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js"></script>
+<script src="das-overlay.js"></script>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #1e2530;        /* blue-gray card/chart surface — makes B/W candles pop */
+    --surface2: #2a3340;       /* slightly lighter blue-gray for inputs */
+    --border: #333;
+    --text: #e8e8e8;
+    --muted: #888;
+    --green: #0f8f61;
+    --green-bright: #22c55e;
+    --red: #c94a35;
+    --red-bright: #ef4444;
+    --orange: #ff682c;
+    --blue: #3b82f6;
+    --yellow: #eab308;
+    /* Marker palette — buy=cyan, sell=bright red. Used by both DAS overlay
+       fills and the card accent borders so execution direction reads at a
+       glance even before zooming into the chart. */
+    --buy: #00bfff;
+    --sell: #ff4444;
+    --radius: 10px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Controls bar ─────────────────────────────────────────── */
+  .controls {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .controls h1 {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+  .controls h1 .accent { color: var(--orange); }
+  .ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ctrl-group label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  input[type="text"], select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input[type="text"]:focus, select:focus { border-color: var(--orange); }
+  input[type="text"] { width: 80px; text-transform: uppercase; }
+  .run-btn {
+    background: var(--orange);
+    color: #fff;
+    border: none;
+    padding: 7px 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    font-family: inherit;
+  }
+  .run-btn:hover { opacity: 0.85; }
+  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── BG color swatch toggle ───────────────────────────────── */
+  .bg-toggle {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .bg-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .bg-swatch:hover { border-color: #888; }
+  .bg-swatch:active { transform: scale(0.92); }
+  /* Orange ring marks the active swatch — same hue as the Run button so
+     the selection cue reuses an accent the user already recognizes. */
+  .bg-swatch.active { border-color: var(--orange); }
+
+  /* ── Summary bar ──────────────────────────────────────────── */
+  .summary-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .stat .label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  .stat .value {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .stat .value.pos { color: var(--green-bright); }
+  .stat .value.neg { color: var(--red-bright); }
+
+  /* ── Gallery grid ─────────────────────────────────────────── */
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 16px;
+    padding: 20px;
+    max-width: 1800px;
+    margin: 0 auto;
+  }
+  /* Card surface uses --card-bg so the BG swatch can repaint both the card
+     frame AND every chart layout background in lockstep. Default fallback
+     keeps the card readable even before the JS sets the variable. */
+  .card {
+    background: var(--card-bg, #161a14);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .card:hover { border-color: #555; }
+  /* Use the new marker palette (cyan/red) for win/loss accent borders so the
+     card color cues match the on-chart execution triangles. P&L badges in the
+     card head still use green/red since that's universal for profit/loss. */
+  .card.win { border-left: 3px solid var(--buy); }
+  .card.loss { border-left: 3px solid var(--sell); }
+  /* Top strip: single horizontal row, left-to-right order is
+     ticker → direction pill → date → pnl-block. All items share one
+     baseline (vertically centered via align-items: center). The pnl-block
+     uses margin-left: auto so it pins to the right edge of the card
+     regardless of how wide the left group grows. */
+  .card-head {
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    justify-content: flex-start;
+    border-bottom: 1px solid var(--border);
+  }
+  /* Left group: ticker | direction | date, all on a single row. */
+  .card-head .head-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  /* Ticker: large bare text per the locked top-strip spec. No pill, no
+     background, no border, no border-radius. Dominates the top-left so the
+     trade identifies at a glance. font-family keeps it visually distinct
+     from the rest of the card (which uses Inter sans). */
+  .card-head .ticker-symbol {
+    font-size: 30px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--text);
+  }
+  .card-head .day-date {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-left: auto;        /* pin date to right edge of card-head */
+  }
+  .pnl-block {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .pnl-block .pnl-dollars {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .pnl-block .pnl-rratio {
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0.85;
+  }
+  .pnl-block.pos .pnl-dollars,
+  .pnl-block.pos .pnl-rratio { color: var(--green-bright); }
+  .pnl-block.neg .pnl-dollars,
+  .pnl-block.neg .pnl-rratio { color: var(--red-bright); }
+  /* Direction pill — kept as a pill per the brief (only the TICKER loses
+     its pill). Colors locked to the spec palette: LONG=cyan/teal,
+     SHORT=red. font-size lifted from 10px → 14px to match the spec. */
+  .dir-badge {
+    font-size: 14px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1.2;
+  }
+  .dir-badge.long  { background: rgba(0,191,255,0.18); color: var(--buy); }
+  .dir-badge.short { background: rgba(255,68,68,0.18); color: var(--sell); }
+  .chart-wrap {
+    position: relative;
+    height: 200px;
+  }
+  .card-details {
+    padding: 0 14px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    font-size: 11px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.2s ease, padding 0.2s ease;
+  }
+  .card-details.expanded {
+    padding: 8px 14px 12px;
+    max-height: 600px;
+  }
+  /* Expand toggle: small chevron on the right of the card-head. Subtle
+     by default (dim color, no background). Rotates 180° when the strip
+     is expanded. */
+  .expand-toggle {
+    background: none;
+    border: 0;
+    color: var(--muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    margin-left: 8px;
+    transition: transform 0.2s ease, color 0.2s ease;
+  }
+  .expand-toggle:hover { color: var(--text); }
+  .expand-toggle[aria-expanded="true"] { transform: rotate(180deg); }
+  .detail-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .detail-cell .dl { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+  .detail-cell .dv { font-weight: 600; }
+  /* "wide" cells (Reason for Entry/Exit) span 2 columns on the 4-col grid so
+     the longer text doesn't wrap awkwardly. Slightly tighter padding than
+     the other cells because the inner line still wraps; font-size stays the
+     same so label/value weights match the rest of the strip. */
+  .detail-cell.detail-cell-wide { grid-column: span 2; }
+  .detail-cell.detail-cell-wide .dv { line-height: 1.35; }
+
+  /* Old .ticker-badge removed per the locked top-strip spec — the ticker is
+     now bare text (.ticker-symbol) with no background/border/radius. */
+
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(13,13,13,0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .loading-overlay.active { display: flex; }
+  .loading-overlay .big-spinner {
+    width: 40px; height: 40px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: var(--orange);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .loading-overlay p { color: var(--muted); font-size: 14px; }
+
+  .error-msg {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--red-bright);
+    font-size: 14px;
+  }
+  .empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <h1><span class="accent">ORB</span> Opening Range Breakout</h1>
+  <div class="ctrl-group">
+    <label>Symbol</label>
+    <input type="text" id="symbol" value="SPY" maxlength="8" />
+  </div>
+  <div class="ctrl-group">
+    <label>OR Window</label>
+    <select id="orMinutes">
+      <option value="5">5 min</option>
+      <option value="15" selected>15 min</option>
+      <option value="30">30 min</option>
+      <option value="60">60 min</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>Interval</label>
+    <select id="interval">
+      <option value="1m">1m</option>
+      <option value="2m">2m</option>
+      <option value="5m" selected>5m</option>
+      <option value="15m">15m</option>
+      <option value="30m">30m</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>Days</label>
+    <select id="days">
+      <option value="5">5</option>
+      <option value="10">10</option>
+      <option value="20" selected>20</option>
+      <option value="30">30</option>
+      <option value="40">40</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>BG</label>
+    <div class="bg-toggle" id="bgToggle">
+      <button class="bg-swatch active" data-bg="#1a2018" title="Olive green" style="background:#1a2018"></button>
+      <button class="bg-swatch" data-bg="#0d2128" title="Dark teal" style="background:#0d2128"></button>
+      <button class="bg-swatch" data-bg="#0e0e10" title="Charcoal" style="background:#0e0e10"></button>
+      <button class="bg-swatch" data-bg="#1f1d1a" title="Warm gray" style="background:#1f1d1a"></button>
+    </div>
+  </div>
+  <button class="run-btn" id="runBtn" onclick="runORB()">
+    Run Backtest
+  </button>
+  <div class="spinner" id="spinner"></div>
+</div>
+
+<div class="summary-bar" id="summaryBar" style="display:none;">
+  <div class="stat">
+    <span class="label">Trades</span>
+    <span class="value" id="sTrades">—</span>
+  </div>
+  <div class="stat">
+    <span class="label">Win Rate</span>
+    <span class="value" id="sWinRate">—</span>
+  </div>
+  <div class="stat">
+    <span class="label">Total P&L</span>
+    <span class="value" id="sTotalPnl">—</span>
+  </div>
+  <div class="stat">
+    <span class="label">Avg P&L</span>
+    <span class="value" id="sAvgPnl">—</span>
+  </div>
+  <div class="stat">
+    <span class="label">Long / Short</span>
+    <span class="value" id="sLongShort">—</span>
+  </div>
+  <div class="stat">
+    <span class="label">Avg Win</span>
+    <span class="value pos" id="sAvgWin">—</span>
+  </div>
+  <div class="stat">
+    <span class="label">Avg Loss</span>
+    <span class="value neg" id="sAvgLoss">—</span>
+  </div>
+  <div class="stat">
+    <span class="label">Best / Worst</span>
+    <span class="value" id="sBestWorst">—</span>
+  </div>
+  <div class="stat">
+    <span class="label">Avg Risk</span>
+    <span class="value" id="sAvgRisk">—</span>
+  </div>
+  <div class="stat">
+    <span class="label">Skipped Days</span>
+    <span class="value" id="sSkipped">—</span>
+  </div>
+</div>
+
+<div class="gallery" id="gallery">
+  <div class="empty-state">Click <strong>Run Backtest</strong> to generate ORB trade examples.</div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="big-spinner"></div>
+  <p id="loadingText">Fetching intraday data from Yahoo Finance…</p>
+</div>
+
+<script>
+const { createChart, CandlestickSeries, HistogramSeries, LineSeries, LineStyle } = LightweightCharts;
+
+// ── Controls ────────────────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+
+// ── BG color theme ──────────────────────────────────────────
+// Chart surface colors (one per swatch). Card frame is a slightly darker
+// pair so the card is visually distinct from the chart inside it.
+const BG_CHART = {
+  '#1a2018': '#1a2018',  // olive green
+  '#0d2128': '#0d2128',  // dark teal
+  '#0e0e10': '#0e0e10',  // charcoal
+  '#1f1d1a': '#1f1d1a',  // warm gray
+};
+const BG_CARD = {
+  '#1a2018': '#161a14',
+  '#0d2128': '#081a20',
+  '#0e0e10': '#08080a',
+  '#1f1d1a': '#191714',
+};
+
+// Restore last selection from localStorage so the user's choice survives a
+// reload. Falls back to olive green if nothing saved or the saved value
+// points at a swatch we no longer support.
+let currentBgColor = '#1a2018';
+try {
+  const savedBg = localStorage.getItem('orb-bg');
+  if (savedBg && BG_CHART[savedBg]) currentBgColor = savedBg;
+} catch (_) { /* localStorage unavailable (private mode etc.) — ignore */ }
+
+// Track every chart instance the gallery owns so the BG swatch can repaint
+// them in one pass. Cleanup happens on run and on page unload via
+// destroyAllOrbOverlays (charts are torn down by removing their parent cards).
+const orbCharts = new Set();
+
+function destroyAllOrbCharts() {
+  for (const chart of orbCharts) {
+    try { chart.remove(); } catch (_) {}
+  }
+  orbCharts.clear();
+}
+
+function applyAllChartsBg(color) {
+  // Push the new surface color into every live chart's layout. API note:
+  // layout.background must stay wrapped in {type:'solid', color:...} —
+  // `chart.applyOptions({layout:{background:{color}}})` would silently
+  // fail because the outer object is replaced, not merged.
+  const options = { layout: { background: { type: 'solid', color } } };
+  for (const chart of orbCharts) {
+    try { chart.applyOptions(options); } catch (_) {}
+  }
+  // Repaint the card frames too. --card-bg is the variable picked up by the
+  // .card CSS rule; chart-vs-card hierarchy is preserved by the curated pairs.
+  document.documentElement.style.setProperty('--card-bg', BG_CARD[color] || color);
+  currentBgColor = color;
+}
+
+function applyBgFromSwatch(btn) {
+  const color = btn.dataset.bg;
+  if (!BG_CHART[color] || color === currentBgColor) return;
+  // Visual selection state first so the orange ring flips immediately even
+  // if a chart redraw throws (it shouldn't, but cheap insurance).
+  document.querySelectorAll('.bg-swatch').forEach((b) => b.classList.toggle('active', b === btn));
+  applyAllChartsBg(color);
+  try { localStorage.setItem('orb-bg', color); } catch (_) {}
+}
+
+// Sync the active-swatch visual with currentBgColor. Used on initial load
+// after we've hydrated from localStorage so the orange ring lines up with
+// the actual theme in use.
+function syncSwatchVisual() {
+  document.querySelectorAll('.bg-swatch').forEach((b) => {
+    b.classList.toggle('active', b.dataset.bg === currentBgColor);
+  });
+}
+
+// Track overlay instances keyed by trade.date so re-runs can clean up.
+const orbOverlays = new Map();
+
+// Destroy any previously created overlays. Called before each fresh run.
+function destroyAllOrbOverlays() {
+  for (const [, overlay] of orbOverlays) {
+    try { overlay.destroy(); } catch (_) {}
+  }
+  orbOverlays.clear();
+  // Charts go alongside overlays because each chart is owned by a card that
+  // is being torn down anyway. Without this, the next run would leak chart
+  // instances and orbCharts would point at dead handles.
+  destroyAllOrbCharts();
+  // Also remove any popups still hanging around.
+  document.querySelectorAll('.orb-exec-popup').forEach((el) => el.remove());
+}
+
+// Cleanup on page unload (avoid leaks from auto-runs during navigation).
+window.addEventListener('beforeunload', destroyAllOrbOverlays);
+
+// ── Execution popup ─────────────────────────────────────────
+// Shown when user clicks an entry/exit marker. Anchored to the marker's
+// pixel position, clamped to viewport edges, dismissable on Esc/outside-click.
+function showExecutionPopup(execution, trade) {
+  // Remove any existing popup first (only one at a time).
+  const existing = document.querySelector('.orb-exec-popup');
+  if (existing) existing.remove();
+
+  const sideLabel = (execution.side || '').toUpperCase();
+  const typeLabel = (execution.type || '').replace(/^./, (c) => c.toUpperCase());
+  // Format Unix-second timestamp as HH:MM ET (America/New_York).
+  let timeLabel = '—';
+  if (typeof execution.time === 'number') {
+    const d = new Date(execution.time * 1000);
+    timeLabel = d.toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: 'America/New_York',
+    }) + ' ET';
+  } else if (execution.time) {
+    timeLabel = String(execution.time);
+  }
+  const priceLabel = typeof execution.price === 'number' ? execution.price.toFixed(4) : '—';
+  // P&L context — for the exit marker only; entry has no settled P&L yet.
+  let pnlHtml = '';
+  if (execution.type === 'exit' && trade && typeof trade.pnl === 'number') {
+    const sign = trade.pnl >= 0 ? '+' : '';
+    const cls = trade.pnl >= 0 ? 'pos' : 'neg';
+    pnlHtml = `<div class="orb-exec-row"><span class="k">Trade P&amp;L</span><span class="v ${cls}">${sign}${trade.pnl.toFixed(2)} (${sign}${trade.pnl_pct?.toFixed?.(2) ?? '0.00'}%)</span></div>`;
+  } else if (execution.type === 'entry' && trade && typeof trade.direction === 'string') {
+    pnlHtml = `<div class="orb-exec-row"><span class="k">Direction</span><span class="v">${trade.direction.toUpperCase()}</span></div>`;
+  }
+
+  const pop = document.createElement('div');
+  pop.className = 'orb-exec-popup';
+  pop.innerHTML = `
+    <div class="orb-exec-head">
+      <span class="orb-exec-tag ${execution.side === 'buy' ? 'buy' : 'sell'}">${sideLabel}</span>
+      <span class="orb-exec-type">${typeLabel}</span>
+      <button class="orb-exec-close" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="orb-exec-row"><span class="k">Time</span><span class="v">${timeLabel}</span></div>
+    <div class="orb-exec-row"><span class="k">Price</span><span class="v">${priceLabel}</span></div>
+    <div class="orb-exec-row"><span class="k">Size</span><span class="v">100 shares</span></div>
+    ${pnlHtml}
+  `;
+  // Inline base styles (matches dark theme from index.html).
+  pop.style.cssText = 'position:fixed;background:#1e2530;border:1px solid #333;border-radius:8px;padding:0;color:#e8e8e8;font-size:12px;z-index:1000;min-width:200px;max-width:260px;box-shadow:0 8px 24px rgba(0,0,0,0.5);font-family:Inter,system-ui,sans-serif;';
+  // Style child elements via a one-off <style> appended once.
+  if (!document.getElementById('orb-popup-styles')) {
+    const styleEl = document.createElement('style');
+    styleEl.id = 'orb-popup-styles';
+    styleEl.textContent = `
+      .orb-exec-popup .orb-exec-head {display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #333;font-weight:700;letter-spacing:0.04em;}
+      .orb-exec-popup .orb-exec-tag {padding:2px 6px;border-radius:4px;font-size:10px;}
+      /* Tag colors match the on-chart execution triangles so the popup's BUY/SELL
+         cue is consistent with what the user clicked. */
+      .orb-exec-popup .orb-exec-tag.buy {background:rgba(0,191,255,0.2);color:#00bfff;}
+      .orb-exec-popup .orb-exec-tag.sell {background:rgba(255,68,68,0.2);color:#ff4444;}
+      .orb-exec-popup .orb-exec-type {flex:1;color:#c8c0b0;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;}
+      .orb-exec-popup .orb-exec-close {background:transparent;border:0;color:#888;font-size:16px;line-height:1;cursor:pointer;padding:0 4px;}
+      .orb-exec-popup .orb-exec-close:hover {color:#fff;}
+      .orb-exec-popup .orb-exec-row {display:flex;justify-content:space-between;padding:6px 10px;gap:16px;}
+      .orb-exec-popup .orb-exec-row + .orb-exec-row {border-top:1px solid #2a2a2a;}
+      .orb-exec-popup .k {color:#888;font-size:11px;}
+      .orb-exec-popup .v {font-weight:600;font-variant-numeric:tabular-nums;}
+      .orb-exec-popup .v.pos {color:#22c55e;}
+      .orb-exec-popup .v.neg {color:#ef4444;}
+    `;
+    document.head.appendChild(styleEl);
+  }
+  document.body.appendChild(pop);
+
+  // Anchor near the clicked marker. Use the marker's bounding rect (most
+  // reliable — it's in viewport coords) and clamp to viewport edges.
+  let anchor;
+  if (execution.getAnchorPx) {
+    anchor = execution.getAnchorPx();
+  } else if (execution.domEvent && execution.domEvent.currentTarget) {
+    const r = execution.domEvent.currentTarget.getBoundingClientRect();
+    anchor = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  } else {
+    anchor = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  }
+  // Position below the marker initially; if it would overflow the bottom,
+  // flip above. Then clamp horizontally with an 8px margin.
+  const POP_GAP = 10;
+  const margin = 8;
+  const popW = pop.offsetWidth || 220;
+  const popH = pop.offsetHeight || 120;
+  let left = anchor.x - popW / 2;
+  let top = anchor.y + POP_GAP;
+  if (top + popH > window.innerHeight - margin && anchor.y - POP_GAP - popH > margin) {
+    top = anchor.y - POP_GAP - popH;
+  }
+  left = Math.max(margin, Math.min(left, window.innerWidth - popW - margin));
+  top = Math.max(margin, Math.min(top, window.innerHeight - popH - margin));
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+
+  // Dismiss handlers
+  function dismiss() {
+    pop.remove();
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('mousedown', onMouseDown, true);
+  }
+  function onKey(e) { if (e.key === 'Escape') dismiss(); }
+  function onMouseDown(e) {
+    if (pop.contains(e.target)) return;
+    dismiss();
+  }
+  pop.querySelector('.orb-exec-close')?.addEventListener('click', dismiss);
+  document.addEventListener('keydown', onKey);
+  // Use capture so we don't fight stopPropagation in nested handlers.
+  document.addEventListener('mousedown', onMouseDown, true);
+}
+
+async function runORB() {
+  const symbol = $('symbol').value.trim().toUpperCase();
+  const orMinutes = $('orMinutes').value;
+  const interval = $('interval').value;
+  const days = $('days').value;
+  if (!symbol) return;
+
+  // Tear down any overlays from a previous run before fetching new data so
+  // the new cards don't get haunted by ghost markers if the user re-runs.
+  destroyAllOrbOverlays();
+
+  $('runBtn').disabled = true;
+  $('spinner').style.display = 'inline-block';
+  $('loadingOverlay').classList.add('active');
+  $('loadingText').textContent = `Fetching ${symbol} intraday data from Yahoo Finance…`;
+
+  try {
+    const resp = await fetch(`/api/orb?symbol=${symbol}&or=${orMinutes}&days=${days}&interval=${interval}`);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      throw new Error(err.error || 'Request failed');
+    }
+    const data = await resp.json();
+    renderResults(data);
+  } catch (e) {
+    $('summaryBar').style.display = 'none';
+    $('gallery').innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
+  } finally {
+    $('runBtn').disabled = false;
+    $('spinner').style.display = 'none';
+    $('loadingOverlay').classList.remove('active');
+  }
+}
+
+function renderResults(data) {
+  const { summary, trades } = data;
+
+  // Normalized dollar risk per trade. The share size is computed per trade so
+  // each trade risks approximately the same dollar amount (|entry - stop| * size ≈
+  // RISK_PER_TRADE). Hoisted above the summary block so AVG RISK can reuse it.
+  const RISK_PER_TRADE = 100;
+
+  // Summary bar
+  $('summaryBar').style.display = 'flex';
+  $('sTrades').textContent = `${summary.trade_days} / ${summary.total_days}`;
+  $('sWinRate').textContent = `${summary.win_rate}%`;
+  const totalEl = $('sTotalPnl');
+  totalEl.textContent = `${summary.total_pnl >= 0 ? '+' : ''}${summary.total_pnl.toFixed(2)}`;
+  totalEl.className = `value ${summary.total_pnl >= 0 ? 'pos' : 'neg'}`;
+  const avgEl = $('sAvgPnl');
+  avgEl.textContent = `${summary.avg_pnl >= 0 ? '+' : ''}${summary.avg_pnl.toFixed(2)}`;
+  avgEl.className = `value ${summary.avg_pnl >= 0 ? 'pos' : 'neg'}`;
+  $('sLongShort').textContent = `${summary.long_count}L / ${summary.short_count}S`;
+  $('sAvgWin').textContent = `+${summary.avg_win.toFixed(2)}`;
+  $('sAvgLoss').textContent = `${summary.avg_loss.toFixed(2)}`;
+  $('sBestWorst').textContent = `${summary.best_trade.toFixed(2)} / ${summary.worst_trade.toFixed(2)}`;
+
+  // Avg Risk: by construction RISK_PER_TRADE is constant across every trade,
+  // so the average is just RISK_PER_TRADE (when there is at least one trade).
+  // Neutral metric — no pos/neg coloring.
+  const avgRisk = trades.length ? RISK_PER_TRADE : 0;
+  $('sAvgRisk').textContent = `$${avgRisk.toFixed(0)}`;
+
+  $('sSkipped').textContent = summary.skipped_days;
+
+  // Gallery
+  if (!trades.length) {
+    $('gallery').innerHTML = '<div class="empty-state">No breakout trades found in this range.</div>';
+    return;
+  }
+
+  // Ticker comes from the top-level summary ("symbol" field). Default to the
+  // user's input symbol if the API response omits it, so old/mock endpoints
+  // still render a recognizable badge.
+  const ticker = (data.summary && data.summary.symbol) || symbol;
+
+  $('gallery').innerHTML = '';
+  trades.forEach((trade) => {
+    const card = document.createElement('div');
+    const isWin = trade.pnl > 0;
+    card.className = `card ${isWin ? 'win' : 'loss'}`;
+
+    // ── Derived fields (computed inline per the spec) ────────────────
+    // Trade duration: show as "Xh Ym" when >= 60 min, otherwise just minutes.
+    // Keeps the cell compact without losing precision for short trades.
+    const durationMin = Math.round((trade.exit_ts - trade.entry_ts) / 60);
+    const durationLabel = durationMin >= 60
+      ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m`
+      : `${durationMin} min`;
+
+    // R-multiple: P&L divided by the initial risk (|entry - stop_price|). Sign
+    // and color track the trade outcome — green for winners, red for losers.
+    // Guard against a zero-risk denominator (stop == entry) which would yield
+    // Infinity/NaN — fall back to 0 so the cell renders something sensible.
+    const riskPerShare = Math.abs(trade.entry - trade.stop_price);
+    const rRatio = riskPerShare > 0 ? trade.pnl / riskPerShare : 0;
+    const rSign = rRatio >= 0 ? '+' : '';
+    const rColor = rRatio >= 0 ? 'var(--green-bright)' : 'var(--red-bright)';
+
+    // Per-trade share size: chosen so |entry - stop| * size ≈ RISK_PER_TRADE.
+    // floor() to whole shares; if stop == entry (zero risk) we size to 0.
+    const size = riskPerShare > 0 ? Math.floor(RISK_PER_TRADE / riskPerShare) : 0;
+
+    // Reason for entry: describe the breakout direction against the OR
+    // boundary that was breached, plus the entry time so the cell explains
+    // both WHAT the trade did and WHEN.
+    const reasonForEntry = trade.direction === 'long'
+      ? `ORB breakout above OR high ${trade.or_high.toFixed(2)} at ${trade.entry_time}`
+      : `ORB breakdown below OR low ${trade.or_low.toFixed(2)} at ${trade.entry_time}`;
+
+    // Reason for exit: map the API's enum to a human-readable phrase. Pass
+    // through any unknown value so unexpected reasons still surface.
+    let reasonForExit;
+    switch (trade.exit_reason) {
+      case 'target': reasonForExit = 'Hit target'; break;
+      case 'stop':   reasonForExit = 'Hit stop';   break;
+      case 'eod':    reasonForExit = 'End of day'; break;
+      default:       reasonForExit = trade.exit_reason || '—';
+    }
+
+    card.innerHTML = `
+      <div class="card-head">
+        <div class="head-left">
+          <span class="ticker-symbol">${ticker}</span>
+          <span class="dir-badge ${trade.direction}">${trade.direction}</span>
+          <div class="pnl-block ${isWin ? 'pos' : 'neg'}">
+            <span class="pnl-dollars">${trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)}</span>
+            <span class="pnl-rratio ${rRatio >= 0 ? 'pos' : 'neg'}">${rSign}${rRatio.toFixed(2)}R</span>
+          </div>
+        </div>
+        <span class="day-date">${trade.day}</span>
+        <button class="expand-toggle" aria-label="Toggle trade details" aria-expanded="false">▾</button>
+      </div>
+      <div class="chart-wrap" id="chart-${trade.date}"></div>
+      <div class="card-details">
+        <div class="detail-cell"><span class="dl">Entry</span><span class="dv">${trade.entry.toFixed(2)}</span></div>
+        <div class="detail-cell"><span class="dl">Exit</span><span class="dv">${trade.exit.toFixed(2)}</span></div>
+        <div class="detail-cell"><span class="dl">Stop price</span><span class="dv" style="color:var(--red-bright)">${trade.stop_price.toFixed(2)}</span></div>
+        <div class="detail-cell"><span class="dl">Size</span><span class="dv">${size} sh</span></div>
+        <div class="detail-cell"><span class="dl">Trade Duration</span><span class="dv">${durationLabel}</span></div>
+        <div class="detail-cell"><span class="dl">Target</span><span class="dv" style="color:var(--green-bright)">${trade.target_price.toFixed(2)}</span></div>
+        <div class="detail-cell"><span class="dl">R-Ratio</span><span class="dv" style="color:${rColor}">${rSign}${rRatio.toFixed(2)}R</span></div>
+        <div class="detail-cell"><span class="dl">$ Risk</span><span class="dv">$${RISK_PER_TRADE}</span></div>
+        <div class="detail-cell"><span class="dl">Entry Time</span><span class="dv">${trade.entry_time}</span></div>
+        <div class="detail-cell"><span class="dl">Exit Time</span><span class="dv">${trade.exit_time}</span></div>
+        <div class="detail-cell detail-cell-wide"><span class="dl">Reason for Entry</span><span class="dv">${reasonForEntry}</span></div>
+        <div class="detail-cell detail-cell-wide"><span class="dl">Reason for Exit</span><span class="dv">${reasonForExit}</span></div>
+      </div>
+    `;
+    $('gallery').appendChild(card);
+
+    // Render chart after DOM insert
+    requestAnimationFrame(() => renderMiniChart(trade));
+
+    // Wire the expand/collapse toggle for the bottom detail strip. Default
+    // is collapsed (locked spec). Clicking flips the .expanded class on
+    // .card-details and updates aria-expanded for accessibility. Must be
+    // done in the forEach (where `card` is in scope) — renderMiniChart
+    // takes (trade) and doesn't see the local card element.
+    const toggleBtn = card.querySelector('.expand-toggle');
+    const detailsEl = card.querySelector('.card-details');
+    if (toggleBtn && detailsEl) {
+      toggleBtn.addEventListener('click', () => {
+        const expanded = detailsEl.classList.toggle('expanded');
+        toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      });
+    }
+  });
+}
+
+function renderMiniChart(trade) {
+  const container = document.getElementById(`chart-${trade.date}`);
+  if (!container) return;
+
+  // Read currentBgColor fresh at render time so a swatch click made BEFORE
+  // the run finishes picks up correctly on each new card. currentBgColor is
+  // a module-level let updated by applyAllChartsBg().
+  const chartBgColor = currentBgColor;
+
+  const chart = createChart(container, {
+    autoSize: true,
+    layout: {
+      // Theme-driven surface (set via the BG swatch in the controls bar).
+      // Black/white candle bodies and orange order markers read against all
+      // four supported surfaces; textColor stays muted gray for axis ticks.
+      background: { type: 'solid', color: chartBgColor },
+      textColor: '#7a8595',
+      fontSize: 10,
+    },
+    grid: {
+      // Grid lines hidden — the price axis and time scale borders are
+      // enough to anchor the eye, and the candles/OR-lines/triangles carry
+      // the information. visible:false is the v5-native way to suppress
+      // grid; falls back to transparent via LWC's option merge.
+      vertLines: { visible: false },
+      horzLines: { visible: false },
+    },
+    rightPriceScale: { borderColor: '#333', scaleMargins: { top: 0.08, bottom: 0.22 } },
+    timeScale: {
+      borderColor: '#333',
+      timeVisible: true,
+      secondsVisible: false,
+      rightOffset: 2,
+    },
+    crosshair: { mode: 0 },
+  });
+
+  // Register so the BG swatch can repaint this chart later without having to
+  // walk the DOM looking for it.
+  orbCharts.add(chart);
+
+  // Black/white candle scheme. Up=close>open (mid-gray fill, dark wick);
+  // Down=close<open (off-white fill, light wick). Borders match fill so the
+  // body reads as solid; wicks are slightly differentiated from the body so
+  // they remain visible against both candles and the olive-green background.
+  const candleSeries = chart.addSeries(CandlestickSeries, {
+    upColor: '#6a6a6a', downColor: '#f0f0f0',
+    borderUpColor: '#6a6a6a', borderDownColor: '#f0f0f0',
+    wickUpColor: '#333333', wickDownColor: '#aaaaaa',
+  });
+
+  const candleData = trade.bars.map(b => ({
+    time: b.time,
+    open: b.open, high: b.high, low: b.low, close: b.close,
+  }));
+  candleSeries.setData(candleData);
+
+  // Volume at bottom
+  const volSeries = chart.addSeries(HistogramSeries, {
+    priceFormat: { type: 'volume' },
+    priceScaleId: 'vol',
+    color: '#333',
+  });
+  chart.priceScale('vol').applyOptions({
+    scaleMargins: { top: 0.85, bottom: 0 },
+  });
+  volSeries.setData(trade.bars.map(b => ({
+    time: b.time,
+    value: b.volume,
+    color: b.close >= b.open ? 'rgba(15,143,97,0.3)' : 'rgba(201,74,53,0.3)',
+  })));
+
+  // OR High / Low horizontal lines (drawn by the caller via createPriceLine
+  // because they need axisLabelVisible + custom title formatting that the
+  // overlay factory's priceLines option supports too — we use the inline API
+  // here to match the existing per-card styling 1:1).
+  candleSeries.createPriceLine({
+    price: trade.or_high,
+    color: 'rgba(34,197,94,0.5)',
+    lineWidth: 1,
+    lineStyle: LineStyle.Dashed,
+    axisLabelVisible: true,
+    title: 'OR H',
+  });
+  candleSeries.createPriceLine({
+    price: trade.or_low,
+    color: 'rgba(239,68,68,0.5)',
+    lineWidth: 1,
+    lineStyle: LineStyle.Dashed,
+    title: 'OR L',
+  });
+
+  // ── Premarket translucent overlay ──────────────────────────────────
+  // Draw a vertical "tissue paper" wash behind the premarket candles. Uses
+  // an absolutely-positioned div inside .chart-wrap (which is position:
+  // relative) so we can match the exact x-range of the premarket bar span.
+  // z-index 1 keeps it BELOW the das-overlay (z-index 5) so execution
+  // triangles and OR price lines stay on top of the wash.
+  //
+  // Premarket uses a SLIGHT WHITE wash (rgba 255,255,255,0.04) so the olive
+  // background appears LIGHTER where premarket sits. The after-hours overlay
+  // uses a BLACK wash (rgba 0,0,0,0.15) so the olive background appears
+  // DARKER where after-hours sits. The contrast (lighter vs darker) lets
+  // the eye tell the two sessions apart at a glance, even though both
+  // are translucent.
+  const pmBars = trade.bars.filter((b) => b.session === 'pre');
+  const postBars = trade.bars.filter((b) => b.session === 'post');
+  let pmOverlay = container.querySelector('.pm-overlay');
+  let postOverlay = container.querySelector('.post-overlay');
+  if (pmBars.length >= 2 && pmOverlay == null) {
+    pmOverlay = document.createElement('div');
+    pmOverlay.className = 'pm-overlay';
+    // Inline base styles cover layout + z-index + pointer-events. The dynamic
+    // left/width are set in positionPmOverlay() so they track pan/zoom.
+    pmOverlay.style.cssText =
+      'position:absolute;top:0;bottom:0;background:rgba(255,255,255,0.08);' +
+      'pointer-events:none;z-index:1;display:none;';
+    container.appendChild(pmOverlay);
+  }
+  if (postBars.length >= 2 && postOverlay == null) {
+    postOverlay = document.createElement('div');
+    postOverlay.className = 'post-overlay';
+    postOverlay.style.cssText =
+      'position:absolute;top:0;bottom:0;background:rgba(0,0,0,0.30);' +
+      'pointer-events:none;z-index:1;display:none;';
+    container.appendChild(postOverlay);
+  }
+
+  // measureBarWidth(anchorTime): returns the on-screen pixel width of one
+  // bar, derived from the time-scale distance between two adjacent bars in
+  // the supplied array. Returns 0 if we can't measure (only one bar in
+  // view, or the scale isn't ready yet) — the caller will then fall back
+  // to bar-start coordinates, which is correct enough when the bar block
+  // is fully off-screen.
+  function measureBarWidth(bars) {
+    if (bars.length < 2) return 0;
+    const t1 = chart.timeScale().timeToCoordinate(bars[0].time);
+    const t2 = chart.timeScale().timeToCoordinate(bars[1].time);
+    if (t1 == null || t2 == null) return 0;
+    return Math.abs(t2 - t1);
+  }
+
+  function positionSessionOverlay(overlay, bars) {
+    if (!overlay || bars.length < 2) {
+      if (overlay) overlay.style.display = 'none';
+      return;
+    }
+    const firstX = chart.timeScale().timeToCoordinate(bars[0].time);
+    const lastX = chart.timeScale().timeToCoordinate(bars[bars.length - 1].time);
+    if (firstX == null || lastX == null) {
+      // Off-screen — keep hidden until the user pans back.
+      overlay.style.display = 'none';
+      return;
+    }
+    // Right-edge snap: bar timestamps mark the LEFT edge of each bar, so
+    // naively using `lastX` leaves the last bar half-uncovered. Extend by
+    // one measured bar width so the overlay ends at the right edge of the
+    // final bar. Falls back to a 0-width extension if we can't measure.
+    const barW = measureBarWidth(bars);
+    const lastBarRightX = lastX + barW;
+    // Clamp width to a positive value (lastX can land before firstX if the
+    // user has scrolled the chart so far that the bar block is entirely
+    // to the left of the visible area).
+    const width = Math.max(0, lastBarRightX - firstX);
+    if (width === 0) {
+      overlay.style.display = 'none';
+      return;
+    }
+    overlay.style.display = 'block';
+    overlay.style.left = `${firstX}px`;
+    overlay.style.width = `${width}px`;
+  }
+
+  function positionPmOverlay() { positionSessionOverlay(pmOverlay, pmBars); }
+  function positionPostOverlay() { positionSessionOverlay(postOverlay, postBars); }
+
+  // Position now (the time scale hasn't laid out yet so first call may yield
+  // null — subscribeVisibleTimeRangeChange fires on every layout pass and
+  // will reposition once the scale is ready).
+  positionPmOverlay();
+  positionPostOverlay();
+  if (pmOverlay) {
+    chart.timeScale().subscribeVisibleTimeRangeChange(positionPmOverlay);
+  }
+  if (postOverlay) {
+    chart.timeScale().subscribeVisibleTimeRangeChange(positionPostOverlay);
+  }
+
+  // Custom DAS execution overlay — replaces the built-in createSeriesMarkers.
+  // T1 triangles at entry/exit, sized as 8% of visible price range, with
+  // click→popup behavior wired through showExecutionPopup().
+  const overlay = createDasOverlay({
+    containerEl: container,
+    chart,
+    candleSeries,
+    shape: 'T1',                              // matches index.html default
+    priceLines: [],                            // OR H/L drawn above via createPriceLine
+    getTrades: () => [{
+      id: trade.date,
+      direction: trade.direction,
+      entryTime: trade.entry_ts,
+      entryPrice: trade.entry,
+      exitTime: trade.exit_ts,
+      exitPrice: trade.exit,
+      // Pass bars so findBarAt can snap execution timestamps to loaded candles
+      // (intraday timestamps may not exactly match a bar.time).
+      bars: trade.bars,
+      // Carry these through for the popup's P&L context row.
+      pnl: trade.pnl,
+      pnl_pct: trade.pnl_pct,
+    }],
+    onMarkerClick: (execution, tradeObj) => showExecutionPopup(execution, tradeObj),
+    sizePct: 10,
+  });
+  orbOverlays.set(trade.date, overlay);
+
+  chart.timeScale().fitContent();
+}
+
+// Enter key on symbol triggers run
+$('symbol').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') runORB();
+});
+
+// ── BG swatch wiring ────────────────────────────────────────
+// One delegated click listener on the toggle container so we don't have to
+// bind four separate handlers, and so swatches added later (e.g. by a future
+// theme extension) Just Work.
+$('bgToggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('.bg-swatch');
+  if (btn) applyBgFromSwatch(btn);
+});
+
+// Paint the initial theme BEFORE the first auto-run so the first paint
+// already shows the user's saved bg (or olive green by default) instead of
+// flashing the old #1e2530 surface and then snapping to the new color.
+applyAllChartsBg(currentBgColor);  // sets --card-bg + currentBgColor; no charts yet, loop is a no-op
+syncSwatchVisual();
+
+// Dev-only debug hook: when ?debug=1 is in the URL, expose the live chart
+// registry so external tooling (Playwright probes, devtools) can introspect
+// grid visibility, layout options, etc. Stripped out in production usage by
+// the absence of the query string.
+if (new URLSearchParams(location.search).has('debug')) {
+  window._orbCharts = orbCharts;
+  console.log('[orb] debug hook active — window._orbCharts holds', orbCharts.size, 'chart(s)');
+}
+
+// Auto-run on load with defaults
+runORB();
+</script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!-- Concept 06: Quant Table — strict table, no decoration, sort hints -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Concept 06 — Quant Table</title>
+<style>
+  :root{
+    --bg:#1a2018;
+    --surface:#222b1f;
+    --surface2:#1c2418;
+    --border:#3a4632;
+    --rule:#2e382a;
+    --text:#e8e8e8;
+    --muted:#8a9486;
+    --dim:#5e6657;
+    --orange:#ff682c;
+    --buy:#00bfff;
+    --sell:#ff4444;
+    --green:#22c55e;
+    --red:#ef4444;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono','SF Mono',ui-monospace,Menlo,Consolas,monospace;padding:24px;min-height:100vh}
+  .title{width:760px;margin:0 auto 8px;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+  .title b{color:var(--orange)}
+  .panel{width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+  /* Status bar */
+  .bar{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--rule);font-size:10px;letter-spacing:.06em}
+  .bar .pill{font-size:9px;padding:3px 7px;border-radius:2px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+  .bar .pill.long{color:var(--buy);background:rgba(0,191,255,.1);border:1px solid rgba(0,191,255,.3)}
+  .bar .id{color:var(--muted)}
+  .bar .id b{color:#fff}
+  .bar .res{color:var(--red);font-weight:700;font-size:13px}
+  .bar .res small{color:var(--muted);font-weight:500;margin-left:6px;font-size:10px}
+  /* Filter / search row */
+  .toolbar{display:flex;gap:1px;background:var(--rule);border-bottom:1px solid var(--rule)}
+  .tb{background:var(--surface2);padding:6px 10px;font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;cursor:default;flex:1;display:flex;align-items:center;gap:6px}
+  .tb:first-child{flex:0 0 auto}
+  .tb::before{content:"⌕";color:var(--orange);font-size:10px}
+  .tb.s::before{content:"↕";}
+  .tb.f::before{content:"≡";}
+  .tb.e::before{content:"↗";}
+  /* Table */
+  table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+  thead th{padding:8px 12px;background:#1a2018;color:var(--muted);font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--rule);white-space:nowrap;position:sticky;top:0;cursor:default}
+  thead th.right{text-align:right}
+  thead th.sort{color:var(--orange)}
+  thead th.sort::after{content:" ▼";font-size:7px}
+  thead th .num{display:block;color:#fff;font-size:10px;letter-spacing:0;margin-top:2px;text-transform:none}
+  tbody tr{border-bottom:1px solid var(--rule);transition:background .15s}
+  tbody tr:hover{background:rgba(255,104,44,.04)}
+  tbody tr.hl{background:rgba(255,104,44,.05)}
+  tbody tr.hl td:first-child{box-shadow:inset 3px 0 0 var(--orange)}
+  td{padding:6px 12px;color:var(--text);white-space:nowrap}
+  td.right{text-align:right}
+  td.k{color:var(--muted);font-size:11px;letter-spacing:.04em}
+  td .unit{color:var(--muted);font-size:10px;margin-left:2px}
+  td .pos{color:var(--green)}
+  td .neg{color:var(--red)}
+  td .acc{color:var(--orange)}
+  td.section{background:var(--surface2);color:var(--orange);font-size:9px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;padding:4px 12px}
+  /* Row number gutter */
+  td.idx{color:var(--dim);width:30px;font-size:10px}
+  thead th.idx{padding-left:8px;padding-right:8px}
+  /* Status footer */
+  .stat-foot{display:flex;justify-content:space-between;padding:6px 14px;background:var(--surface2);border-top:1px solid var(--rule);font-size:10px;color:var(--muted)}
+  .stat-foot b{color:#fff;font-weight:600}
+  /* Detail drawer */
+  .drawer{padding:12px 14px;background:#1a2018;border-top:1px solid var(--orange);font-size:11px;line-height:1.5;display:grid;grid-template-columns:auto 1fr;gap:14px}
+  .drawer .lbl{color:var(--orange);font-weight:700;font-size:9px;letter-spacing:.14em;text-transform:uppercase;width:88px}
+  .drawer .txt{color:var(--ink)}
+  .drawer .txt code{color:#fff;background:var(--surface2);padding:1px 5px;border-radius:2px;font-size:10.5px}
+</style>
+</head>
+<body>
+<div class="title">// Concept <b>06</b> — Quant Table &nbsp;·&nbsp; strict rows &nbsp;·&nbsp; sort/filter affordances &nbsp;·&nbsp; minimal decoration &nbsp;·&nbsp; dense</div>
+
+<div class="panel">
+  <div class="bar">
+    <div class="pill long">▲ LONG</div>
+    <div class="id">SPY &nbsp;·&nbsp; <b>Tue 2026-06-30</b> &nbsp;·&nbsp; 15m ORB &nbsp;·&nbsp; EOD exit &nbsp;·&nbsp; 100 sh</div>
+    <div class="res">-$0.58<small>(-0.08% / -0.21R)</small></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="tb">find</div>
+    <div class="tb s">sort: field ▲</div>
+    <div class="tb f">filter: all</div>
+    <div class="tb e">export csv</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="idx">#</th>
+        <th>FIELD</th>
+        <th class="right sort">VALUE<span class="num">▼</span></th>
+        <th class="right">UNIT</th>
+        <th class="right">Δ / NOTE</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="hl"><td class="idx">01</td><td class="k">ticker</td><td class="right" style="color:#fff;font-weight:700">SPY</td><td class="right" style="color:var(--muted)">symbol</td><td></td></tr>
+      <tr><td class="idx">02</td><td class="k">date</td><td class="right">2026-06-30</td><td class="right" style="color:var(--muted)">Tue</td><td class="acc">session</td></tr>
+      <tr><td class="idx">03</td><td class="k">direction</td><td class="right" style="color:var(--buy)">LONG</td><td class="right" style="color:var(--muted)">side</td><td>▲ breakout</td></tr>
+
+      <tr><td class="section" colspan="5">— TIMING —</td></tr>
+      <tr><td class="idx">04</td><td class="k">entry_time</td><td class="right">09:45</td><td class="right" style="color:var(--muted)">ET</td><td>ORB close</td></tr>
+      <tr><td class="idx">05</td><td class="k">exit_time</td><td class="right">15:55</td><td class="right" style="color:var(--muted)">ET</td><td>EOD</td></tr>
+      <tr><td class="idx">06</td><td class="k">duration</td><td class="right">370</td><td class="right" style="color:var(--muted)">min</td><td>6h 10m</td></tr>
+
+      <tr><td class="section" colspan="5">— PRICES —</td></tr>
+      <tr><td class="idx">07</td><td class="k">entry</td><td class="right">729.66</td><td class="right" style="color:var(--muted)">USD</td><td class="acc">+0.12 over OR high</td></tr>
+      <tr><td class="idx">08</td><td class="k">exit</td><td class="right" style="color:var(--red)">729.08</td><td class="right" style="color:var(--muted)">USD</td><td class="neg">-0.58 fill</td></tr>
+      <tr><td class="idx">09</td><td class="k">stop_price</td><td class="right" style="color:var(--red)">726.86</td><td class="right" style="color:var(--muted)">USD</td><td>= OR low</td></tr>
+      <tr><td class="idx">10</td><td class="k">target_price</td><td class="right" style="color:var(--green)">738.06</td><td class="right" style="color:var(--muted)">USD</td><td>OR high + 3R</td></tr>
+      <tr><td class="idx">11</td><td class="k">or_high</td><td class="right">729.78</td><td class="right" style="color:var(--muted)">USD</td><td>15m</td></tr>
+      <tr><td class="idx">12</td><td class="k">or_low</td><td class="right">726.86</td><td class="right" style="color:var(--muted)">USD</td><td>15m</td></tr>
+      <tr><td class="idx">13</td><td class="k">or_minutes</td><td class="right" style="color:var(--orange)">15</td><td class="right" style="color:var(--muted)">min</td><td>range</td></tr>
+
+      <tr><td class="section" colspan="5">— RISK —</td></tr>
+      <tr><td class="idx">14</td><td class="k">stop_distance</td><td class="right">2.80</td><td class="right" style="color:var(--muted)">pts</td><td>= MAE</td></tr>
+      <tr><td class="idx">15</td><td class="k">target_distance</td><td class="right">8.40</td><td class="right" style="color:var(--muted)">pts</td><td>3R</td></tr>
+      <tr><td class="idx">16</td><td class="k">r_ratio_plan</td><td class="right">3.00</td><td class="right" style="color:var(--muted)">×</td><td>1 : 3.0</td></tr>
+      <tr><td class="idx">17</td><td class="k">size</td><td class="right">100</td><td class="right" style="color:var(--muted)">sh</td><td></td></tr>
+
+      <tr><td class="section" colspan="5">— EXCURSION —</td></tr>
+      <tr><td class="idx">18</td><td class="k">mfe</td><td class="right pos">+1.86</td><td class="right" style="color:var(--muted)">pts</td><td>10:55</td></tr>
+      <tr><td class="idx">19</td><td class="k">mae</td><td class="right neg">-2.80</td><td class="right" style="color:var(--muted)">pts</td><td>13:40</td></tr>
+      <tr><td class="idx">20</td><td class="k">mfe_mae_ratio</td><td class="right">0.66</td><td class="right" style="color:var(--muted)">×</td><td></td></tr>
+      <tr><td class="idx">21</td><td class="k">efficiency</td><td class="right neg">-31.2%</td><td class="right" style="color:var(--muted)">pnl/mfe</td><td></td></tr>
+
+      <tr><td class="section" colspan="5">— RESULT —</td></tr>
+      <tr class="hl"><td class="idx">22</td><td class="k">pnl</td><td class="right neg">-0.58</td><td class="right" style="color:var(--muted)">USD</td><td class="neg">100 sh</td></tr>
+      <tr><td class="idx">23</td><td class="k">pnl_pct</td><td class="right neg">-0.0795</td><td class="right" style="color:var(--muted)">%</td><td class="neg">-7.95 bps</td></tr>
+      <tr><td class="idx">24</td><td class="k">r_multiple</td><td class="right neg">-0.21</td><td class="right" style="color:var(--muted)">R</td><td class="neg">lost 0.21× risk</td></tr>
+      <tr><td class="idx">25</td><td class="k">exit_reason</td><td class="right acc">EOD</td><td class="right" style="color:var(--muted)">code</td><td>end of day</td></tr>
+    </tbody>
+  </table>
+
+  <div class="drawer">
+    <div class="lbl">REASON</div>
+    <div class="txt">Entered <code>LONG @ 729.66</code> on 15m ORB breakout above <code>OR high 729.78</code> at 09:45. Stop <code>726.86</code>, target <code>738.06</code>. Exited <code>EOD @ 729.08</code> for <code>-0.21R</code>.</div>
+  </div>
+
+  <div class="stat-foot">
+    <span>25 rows · 5 sections · 1 trade</span>
+    <span>Last update <b>2026-06-30 16:01 ET</b></span>
+  </div>
+</div>
+</body>
+</html>

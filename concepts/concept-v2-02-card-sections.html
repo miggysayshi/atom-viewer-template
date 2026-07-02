@@ -1,0 +1,349 @@
+<!-- Concept 02: Card Sections — Execution / Risk / Result / Context, rounded borders -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Concept 02 — Card Sections (v2)</title>
+<style>
+  :root{
+    --bg:#1a2018;
+    --surface:#222b1f;
+    --surface2:#2a3424;
+    --border:#3a4632;
+    --text:#e8e8e8;
+    --muted:#8a9486;
+    --orange:#ff682c;
+    --buy:#00bfff;
+    --sell:#ff4444;
+    --green:#22c55e;
+    --red:#ef4444;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;padding:24px;min-height:100vh}
+  .title{width:760px;margin:0 auto 8px;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+  .title b{color:var(--orange)}
+  .wrap{width:760px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+  /* Header */
+  .hdr{background:linear-gradient(135deg,#222b1f,#2a3424);border:1px solid var(--border);border-radius:12px;padding:14px 18px;display:grid;grid-template-columns:1fr auto auto;gap:18px;align-items:center;position:relative;overflow:hidden}
+  .hdr::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--buy)}
+  .hdr.long::before{background:var(--buy)}
+  .hdr .left h1{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .hdr .left .sub{font-size:12px;color:var(--muted);margin-top:4px}
+  .dir-pill{padding:6px 14px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.08em;display:inline-flex;align-items:center;gap:6px}
+  .dir-pill.long{background:rgba(0,191,255,.12);color:var(--buy);border:1px solid rgba(0,191,255,.4)}
+  .dir-pill.short{background:rgba(255,68,68,.12);color:var(--sell);border:1px solid rgba(255,68,68,.4)}
+  .pnl-block{text-align:right}
+  .pnl-block .amt{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .pnl-block .amt.neg{color:var(--red)}
+  .pnl-block .amt.pos{color:var(--green)}
+  .pnl-block .pct{font-size:11px;font-weight:600;color:var(--muted);margin-top:3px}
+  .pnl-block .pct.neg{color:var(--red)}
+  /* Sections */
+  .sections{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative}
+  .card.wide{grid-column:1/-1}
+  .card .head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .card .head .dot{width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 6px var(--orange)}
+  .card .head h2{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text)}
+  .card .head .meta{margin-left:auto;font-size:10px;color:var(--muted)}
+  .card .row{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}
+  .kv{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px dashed rgba(255,255,255,.06)}
+  .kv:last-child{border-bottom:0}
+  .kv .k{font-size:10px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+  .kv .v{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+  .kv .v.pos{color:var(--green)}
+  .kv .v.neg{color:var(--red)}
+  .kv .v.acc{color:var(--orange)}
+  /* Big number strip */
+  .hero-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:2px}
+  .hero{background:linear-gradient(160deg,#222b1f,#1a2018);border:1px solid var(--border);border-radius:12px;padding:12px 14px;text-align:center}
+  .hero .lbl{font-size:9px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
+  .hero .num{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px;line-height:1}
+  .hero .num.neg{color:var(--red)}
+  .hero .num.pos{color:var(--green)}
+  .hero .num.acc{color:var(--orange)}
+  .hero .sub{font-size:10px;color:var(--muted);margin-top:2px}
+  /* Reason callout */
+  .reason{background:rgba(255,104,44,.06);border:1px solid rgba(255,104,44,.3);border-radius:10px;padding:10px 14px;font-size:12px;line-height:1.5}
+  .reason b{color:var(--orange)}
+  .reason .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);font-weight:700;display:block;margin-bottom:4px}
+</style>
+<script src="https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<!-- v2: Chart on top -->
+<div class="v2-chart-frame">
+  <div class="v2-chart-header">
+    <span class="v2-chart-title">SPY · Tue Jun 30 2026 · 5m · Long EOD scratch</span>
+    <span class="v2-chart-legend">
+      <span class="lg lg-orh">OR H 729.78</span>
+      <span class="lg lg-orl">OR L 726.86</span>
+      <span class="lg lg-stop">Stop 726.86</span>
+      <span class="lg lg-tgt">Target 738.06</span>
+      <span class="lg lg-entry">▲ Entry 729.66</span>
+      <span class="lg lg-exit">▼ Exit 729.08</span>
+    </span>
+  </div>
+  <div id="v2-chart" class="v2-chart"></div>
+  <div class="v2-chart-foot">Olive bg #1a2018 · gray-up / white-down candles · premarket (translucent white) · after-hours (translucent black) · OR lines dashed · cyan ↑ / red ↓</div>
+</div>
+
+<script>
+const bars = [
+  {time: 1782488400, open: 727.0, high: 727.5, low: 726.8, close: 727.2, volume: 1.2e6, session: 'pre'},
+  {time: 1782490200, open: 727.2, high: 727.8, low: 727.0, close: 727.5, volume: 1.4e6, session: 'pre'},
+  {time: 1782492000, open: 727.5, high: 728.0, low: 727.3, close: 727.7, volume: 1.6e6, session: 'pre'},
+  {time: 1782493800, open: 727.7, high: 728.2, low: 727.5, close: 728.0, volume: 1.8e6, session: 'pre'},
+  {time: 1782495600, open: 728.0, high: 728.5, low: 727.8, close: 728.3, volume: 2.1e6, session: 'pre'},
+  {time: 1782497400, open: 728.3, high: 729.0, low: 728.2, close: 728.9, volume: 2.5e6, session: 'pre'},
+  {time: 1782499200, open: 728.9, high: 729.5, low: 728.7, close: 729.3, volume: 3.1e6, session: 'pre'},
+  {time: 1782501000, open: 729.3, high: 729.8, low: 729.2, close: 729.6, volume: 3.7e6, session: 'pre'},
+  {time: 1782502800, open: 729.6, high: 729.78, low: 726.86, close: 727.5, volume: 4.2e6, session: 'rth'},
+  {time: 1782504600, open: 727.5, high: 729.7, low: 727.0, close: 729.66, volume: 5.1e6, session: 'rth'},
+  {time: 1782507300, open: 729.66, high: 731.5, low: 729.5, close: 731.52, volume: 6.8e6, session: 'rth'},
+  {time: 1782509100, open: 731.5, high: 732.0, low: 730.8, close: 731.0, volume: 5.4e6, session: 'rth'},
+  {time: 1782510900, open: 731.0, high: 731.2, low: 729.0, close: 729.2, volume: 4.9e6, session: 'rth'},
+  {time: 1782512700, open: 729.2, high: 729.5, low: 727.5, close: 727.7, volume: 4.2e6, session: 'rth'},
+  {time: 1782514500, open: 727.7, high: 728.5, low: 727.0, close: 728.4, volume: 3.7e6, session: 'rth'},
+  {time: 1782516300, open: 728.4, high: 729.0, low: 727.8, close: 728.8, volume: 3.1e6, session: 'rth'},
+  {time: 1782518100, open: 728.8, high: 729.2, low: 728.0, close: 728.2, volume: 2.8e6, session: 'rth'},
+  {time: 1782519900, open: 728.2, high: 728.6, low: 727.5, close: 727.6, volume: 2.4e6, session: 'rth'},
+  {time: 1782521700, open: 727.6, high: 728.0, low: 726.86, close: 727.0, volume: 2.1e6, session: 'rth'},
+  {time: 1782523500, open: 727.0, high: 727.5, low: 726.5, close: 726.6, volume: 2.4e6, session: 'rth'},
+  {time: 1782525300, open: 726.6, high: 727.0, low: 725.5, close: 725.8, volume: 2.9e6, session: 'rth'},
+  {time: 1782527100, open: 725.8, high: 727.5, low: 725.5, close: 727.4, volume: 3.5e6, session: 'rth'},
+  {time: 1782528900, open: 727.4, high: 728.5, low: 727.2, close: 728.4, volume: 4.0e6, session: 'rth'},
+  {time: 1782530700, open: 728.4, high: 729.4, low: 728.2, close: 729.2, volume: 4.6e6, session: 'rth'},
+  {time: 1782531900, open: 729.2, high: 729.5, low: 728.9, close: 729.08, volume: 5.3e6, session: 'rth'},
+  {time: 1782533400, open: 729.1, high: 729.3, low: 728.8, close: 729.0, volume: 1.5e6, session: 'post'},
+  {time: 1782535200, open: 729.0, high: 729.2, low: 728.7, close: 728.8, volume: 1.2e6, session: 'post'},
+  {time: 1782537000, open: 728.8, high: 729.0, low: 728.5, close: 728.6, volume: 9.5e5, session: 'post'},
+  {time: 1782538800, open: 728.6, high: 728.9, low: 728.4, close: 728.5, volume: 7.8e5, session: 'post'},
+  {time: 1782540600, open: 728.5, high: 728.7, low: 728.3, close: 728.4, volume: 6.2e5, session: 'post'},
+  {time: 1782542400, open: 728.4, high: 728.6, low: 728.2, close: 728.3, volume: 4.9e5, session: 'post'},
+  {time: 1782544200, open: 728.3, high: 728.5, low: 728.1, close: 728.2, volume: 3.8e5, session: 'post'},
+  {time: 1782546000, open: 728.2, high: 728.4, low: 728.0, close: 728.1, volume: 2.9e5, session: 'post'},
+];
+const TRADE = {
+  entry_ts: 1782507300, exit_ts: 1782531900,
+  entry: 729.66, exit: 729.08,
+  stop: 726.86, target: 738.06,
+  or_high: 729.78, or_low: 726.86,
+};
+(function renderV2Chart() {
+  const container = document.getElementById('v2-chart');
+  if (!container) return;
+  const { createChart, CandlestickSeries, HistogramSeries, LineStyle } = LightweightCharts;
+  const chart = createChart(container, {
+    autoSize: true,
+    layout: { background: { type: 'solid', color: '#1a2018' }, textColor: '#7a8595', fontSize: 10 },
+    grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+    rightPriceScale: { borderColor: '#333', scaleMargins: { top: 0.08, bottom: 0.22 } },
+    timeScale: { borderColor: '#333', timeVisible: true, secondsVisible: false, rightOffset: 2 },
+    crosshair: { mode: 0 },
+  });
+  const candle = chart.addSeries(CandlestickSeries, {
+    upColor: '#6a6a6a', downColor: '#f0f0f0',
+    borderUpColor: '#6a6a6a', borderDownColor: '#f0f0f0',
+    wickUpColor: '#333333', wickDownColor: '#aaaaaa',
+  });
+  candle.setData(bars.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
+  const vol = chart.addSeries(HistogramSeries, {
+    priceFormat: { type: 'volume' }, priceScaleId: 'vol', color: '#333',
+  });
+  chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+  vol.setData(bars.map(b => ({
+    time: b.time, value: b.volume,
+    color: b.close >= b.open ? 'rgba(15,143,97,0.3)' : 'rgba(201,74,53,0.3)',
+  })));
+  // OR lines
+  candle.createPriceLine({ price: TRADE.or_high, color: 'rgba(34,197,94,0.5)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'OR H 729.78' });
+  candle.createPriceLine({ price: TRADE.or_low,  color: 'rgba(239,68,68,0.5)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'OR L 726.86' });
+  // Stop & Target
+  candle.createPriceLine({ price: TRADE.stop,   color: '#ff4444', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Stop 726.86' });
+  candle.createPriceLine({ price: TRADE.target, color: '#22c55e', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Target 738.06' });
+  // Entry / exit markers as separate series using line series for arrows
+  const entryMarker = chart.addSeries(LightweightCharts.SeriesType ? null : (typeof LightweightCharts === 'object' ? null : null) );
+  // Use markers plugin via createSeriesMarkers if available; otherwise inline arrow via LineSeries
+  // v5 standalone: markers via createSeriesMarkers
+  if (typeof LightweightCharts.createSeriesMarkers === 'function') {
+    LightweightCharts.createSeriesMarkers(candle, [
+      { time: TRADE.entry_ts, position: 'belowBar', color: '#00bfff', shape: 'arrowUp', text: 'Entry 729.66 @ 09:45' },
+      { time: TRADE.exit_ts,  position: 'aboveBar', color: '#ff4444', shape: 'arrowDown', text: 'Exit 729.08 @ 15:55' },
+    ]);
+  } else {
+    // Fallback: tag via setMarkers / series markers accessor
+    try {
+      candle.setMarkers && candle.setMarkers([
+        { time: TRADE.entry_ts, position: 'belowBar', color: '#00bfff', shape: 'arrowUp', text: 'Entry 729.66' },
+        { time: TRADE.exit_ts,  position: 'aboveBar', color: '#ff4444', shape: 'arrowDown', text: 'Exit 729.08' },
+      ]);
+    } catch (e) {}
+  }
+  // Session overlays (premarket / after-hours translucent washes)
+  const pmBars = bars.filter(b => b.session === 'pre');
+  const postBars = bars.filter(b => b.session === 'post');
+  let pmOverlay = null, postOverlay = null;
+  if (pmBars.length >= 2) {
+    pmOverlay = document.createElement('div');
+    pmOverlay.style.cssText = 'position:absolute;top:0;bottom:0;background:rgba(255,255,255,0.08);pointer-events:none;z-index:1;display:none;';
+    container.appendChild(pmOverlay);
+  }
+  if (postBars.length >= 2) {
+    postOverlay = document.createElement('div');
+    postOverlay.style.cssText = 'position:absolute;top:0;bottom:0;background:rgba(0,0,0,0.30);pointer-events:none;z-index:1;display:none;';
+    container.appendChild(postOverlay);
+  }
+  function measureBarWidth(bs) {
+    if (bs.length < 2) return 0;
+    const t1 = chart.timeScale().timeToCoordinate(bs[0].time);
+    const t2 = chart.timeScale().timeToCoordinate(bs[1].time);
+    if (t1 == null || t2 == null) return 0;
+    return Math.abs(t2 - t1);
+  }
+  function positionOverlay(overlay, bs) {
+    if (!overlay || bs.length < 2) { if (overlay) overlay.style.display = 'none'; return; }
+    const firstX = chart.timeScale().timeToCoordinate(bs[0].time);
+    const lastX = chart.timeScale().timeToCoordinate(bs[bs.length - 1].time);
+    if (firstX == null || lastX == null) { overlay.style.display = 'none'; return; }
+    const w = Math.max(0, lastX + measureBarWidth(bs) - firstX);
+    if (w === 0) { overlay.style.display = 'none'; return; }
+    overlay.style.display = 'block';
+    overlay.style.left = firstX + 'px';
+    overlay.style.width = w + 'px';
+  }
+  function updateAll() {
+    positionOverlay(pmOverlay, pmBars);
+    positionOverlay(postOverlay, postBars);
+  }
+  updateAll();
+  chart.timeScale().subscribeVisibleTimeRangeChange(updateAll);
+  chart.timeScale().fitContent();
+})();
+</script>
+
+<style>
+/* v2 chart frame styles — charts depend on .v2-chart-frame being
+   position:relative so the absolutely-positioned overlays line up. */
+.v2-chart-frame{
+  width:760px;margin:0 auto 16px;background:var(--surface,#222b1f);
+  border:1px solid var(--border,#3a4632);border-radius:10px;
+  overflow:hidden;font-family:inherit;
+}
+.v2-chart-header{
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;
+  padding:8px 14px;background:linear-gradient(90deg,#161c14,#1a2018);
+  border-bottom:1px solid var(--orange,#ff682c);
+}
+.v2-chart-title{font-size:12px;font-weight:700;color:#fff;letter-spacing:.04em}
+.v2-chart-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:10px;color:var(--muted,#8a9486);font-family:ui-monospace,monospace}
+.v2-chart-legend .lg{white-space:nowrap}
+.v2-chart-legend .lg-orh{color:#22c55e}
+.v2-chart-legend .lg-orl{color:#ef4444}
+.v2-chart-legend .lg-stop{color:#ff4444}
+.v2-chart-legend .lg-tgt{color:#22c55e}
+.v2-chart-legend .lg-entry{color:#00bfff}
+.v2-chart-legend .lg-exit{color:#ff4444}
+.v2-chart{position:relative;width:100%;height:240px}
+.v2-chart-foot{padding:6px 14px;background:#0f130d;border-top:1px solid var(--border,#3a4632);font-size:10px;color:var(--muted,#7a8478);letter-spacing:.06em}
+</style>
+
+<div class="title">// Concept <b>02</b> — Card Sections &nbsp;·&nbsp; rounded borders &nbsp;·&nbsp; 4 labeled cards &nbsp;·&nbsp; spacious</div>
+
+<div class="wrap">
+  <!-- HEADER -->
+  <div class="hdr long">
+    <div class="left">
+      <h1>SPY <span style="color:var(--orange)">·</span> ORB</h1>
+      <div class="sub">Tuesday, June 30, 2026 &nbsp;·&nbsp; 15m Opening Range breakout</div>
+    </div>
+    <div class="dir-pill long">▲ LONG</div>
+    <div class="pnl-block">
+      <div class="amt neg">-$0.58</div>
+      <div class="pct neg">-0.0795%</div>
+    </div>
+  </div>
+
+  <!-- HERO STATS -->
+  <div class="hero-strip">
+    <div class="hero">
+      <div class="lbl">R-Multiple</div>
+      <div class="num neg">-0.21R</div>
+      <div class="sub">on $2.80 risk</div>
+    </div>
+    <div class="hero">
+      <div class="lbl">Trade Duration</div>
+      <div class="num" style="color:#fff">6h 10m</div>
+      <div class="sub">09:45 → 15:55 ET</div>
+    </div>
+    <div class="hero">
+      <div class="lbl">Excursion</div>
+      <div class="num acc">+1.86 / -2.80</div>
+      <div class="sub">MFE / MAE</div>
+    </div>
+    <div class="hero">
+      <div class="lbl">Planned R:R</div>
+      <div class="num" style="color:#fff">1 : 3.0</div>
+      <div class="sub">stop 2.80 / target 8.40</div>
+    </div>
+  </div>
+
+  <!-- 2x2 SECTION GRID -->
+  <div class="sections">
+    <div class="card">
+      <div class="head"><div class="dot"></div><h2>Execution</h2><span class="meta">filled → closed</span></div>
+      <div class="row">
+        <div class="kv"><span class="k">Entry Time</span><span class="v">09:45 ET</span></div>
+        <div class="kv"><span class="k">Exit Time</span><span class="v">15:55 ET</span></div>
+        <div class="kv"><span class="k">Entry Price</span><span class="v">$729.66</span></div>
+        <div class="kv"><span class="k">Exit Price</span><span class="v neg">$729.08</span></div>
+        <div class="kv"><span class="k">Size</span><span class="v">100 sh</span></div>
+        <div class="kv"><span class="k">Slippage</span><span class="v">$0.00</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="head"><div class="dot" style="background:var(--red);box-shadow:0 0 6px var(--red)"></div><h2>Risk</h2><span class="meta">bracket</span></div>
+      <div class="row">
+        <div class="kv"><span class="k">Stop Price</span><span class="v neg">$726.86</span></div>
+        <div class="kv"><span class="k">Target Price</span><span class="v pos">$738.06</span></div>
+        <div class="kv"><span class="k">Stop Distance</span><span class="v">2.80 pts</span></div>
+        <div class="kv"><span class="k">Target Distance</span><span class="v">8.40 pts</span></div>
+        <div class="kv"><span class="k">$ at Risk</span><span class="v">$280.00</span></div>
+        <div class="kv"><span class="k">R:R Plan</span><span class="v acc">1 : 3.00</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="head"><div class="dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div><h2>Result</h2><span class="meta">closed</span></div>
+      <div class="row">
+        <div class="kv"><span class="k">P&amp;L ($)</span><span class="v neg">-$0.58</span></div>
+        <div class="kv"><span class="k">P&amp;L (%)</span><span class="v neg">-0.0795%</span></div>
+        <div class="kv"><span class="k">R-Multiple</span><span class="v neg">-0.21R</span></div>
+        <div class="kv"><span class="k">Exit Reason</span><span class="v acc">End of Day</span></div>
+        <div class="kv"><span class="k">MFE</span><span class="v pos">+1.86</span></div>
+        <div class="kv"><span class="k">MAE</span><span class="v neg">-2.80</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="head"><div class="dot" style="background:#9aa6ff;box-shadow:0 0 6px #9aa6ff"></div><h2>Opening Range</h2><span class="meta">context</span></div>
+      <div class="row">
+        <div class="kv"><span class="k">OR High</span><span class="v">$729.78</span></div>
+        <div class="kv"><span class="k">OR Low</span><span class="v">$726.86</span></div>
+        <div class="kv"><span class="k">OR Width</span><span class="v">2.92 pts</span></div>
+        <div class="kv"><span class="k">OR Minutes</span><span class="v acc">15m</span></div>
+        <div class="kv"><span class="k">Breakout Δ</span><span class="v">+0.12</span></div>
+        <div class="kv"><span class="k">OR % of Day</span><span class="v">0.40%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REASON CALLOUT -->
+  <div class="reason">
+    <span class="lbl">Trade Thesis</span>
+    Entered <b>LONG at $729.66</b> on a 15m ORB breakout above OR high <b>$729.78</b> at 09:45 ET. Stop placed at OR low <b>$726.86</b> (2.80 risk), target at OR high + 3R = <b>$738.06</b>. Exited at 15:55 ET as <b>end-of-day</b> with target not reached; position closed at $729.08 for <b>-0.21R</b>.
+  </div>
+</div>
+</body>
+</html>

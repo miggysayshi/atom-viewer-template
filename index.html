@@ -1,0 +1,4026 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yahoo Daily Lightweight Chart</title>
+    <script src="https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="das-overlay.js"></script>
+    <style>
+      :root {
+        --paper: #f4f1ea;
+        --ink: #202020;
+        --muted: #74706a;
+        --line: #d7d0c3;
+        --panel: #fffdf8;
+        --orange: #ff682c;
+        --green: #0f8f61;
+        --red: #c94a35;
+        --tb-bg: #1a1a1a;
+        --tb-surface: #242424;
+        --tb-border: #333333;
+        --tb-muted: #888888;
+        --tb-text: #e8e8e8;
+        --tb-accent: #ffffff;
+        --tb-radius: 999px;
+        --tb-radius-sm: 6px;
+        --8: 8px;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      main {
+        width: min(1320px, calc(100vw - 32px));
+        margin: 24px auto;
+        display: grid;
+        gap: 16px;
+      }
+      header, .stats {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: 0 12px 28px rgba(32, 32, 32, 0.06);
+      }
+      header { padding: 20px 22px; }
+      .kicker { margin: 0 0 8px; color: var(--orange); font-weight: 750; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; }
+      h1 { margin: 0; font-size: clamp(28px, 4vw, 48px); letter-spacing: -0.04em; line-height: .96; }
+      .lede { max-width: 760px; color: var(--muted); margin: 12px 0 0; }
+
+      /* ── Toolbar (attached top chrome) ─────────────────────────────────────── */
+      /*
+       * v4 / Attached top chrome: the toolbar sits flush against the chart
+       * top edge as chart-native chrome. The .chart-card flexes vertically
+       * with the toolbar on top and the chart on the bottom — they share one
+       * outer card with no gap between them. Rounded corners only on the
+       * outer top (toolbar) and outer bottom (chart area).
+       */
+      #toolbar {
+        background: var(--tb-bg);
+        border-radius: 12px 12px 0 0;
+        border: 1px solid var(--tb-border);
+        border-bottom: none;
+        padding: 5px 8px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: nowrap;
+        flex: 0 0 auto;
+        min-height: 36px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: #3a3a3a transparent;
+        /* Establish a stacking context so menu-dd popovers (z-index 50)
+         * float above the chart canvas instead of being painted under it. */
+        position: relative;
+        z-index: 30;
+      }
+      #toolbar::-webkit-scrollbar { height: 4px; }
+      #toolbar::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 2px; }
+
+      .tb-group {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding-right: 4px;
+        flex-shrink: 0;
+      }
+      .tb-group.tb-sep {
+        border-left: 1px solid var(--tb-border);
+        padding-left: 6px;
+      }
+      .tb-group:last-child { padding-right: 0; }
+
+      /* Ticker input */
+      #symbol {
+        width: 76px;
+        height: 26px;
+        background: transparent;
+        border: none;
+        border-radius: var(--tb-radius-sm);
+        color: var(--tb-text);
+        font-size: 13px;
+        font-weight: 700;
+        padding: 0 8px;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+      }
+      #symbol::placeholder { color: var(--tb-muted); text-transform: none; letter-spacing: 0; font-weight: 400; }
+      #symbol:hover { background: rgba(255,255,255,.04); }
+      #symbol:focus { outline: none; background: rgba(255,255,255,.06); color: var(--tb-accent); }
+
+      /* Range dropdown */
+      #range {
+        width: 54px;
+        height: 26px;
+        background: transparent;
+        border: none;
+        border-radius: var(--tb-radius-sm);
+        color: var(--tb-muted);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 0 8px;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        padding-right: 22px;
+      }
+      #range:hover { background: rgba(255,255,255,.04); color: var(--tb-text); }
+      #range:focus { outline: none; background: rgba(255,255,255,.06); color: var(--tb-text); }
+      #range option { background: #242424; color: #e8e8e8; }
+
+      /* Compact toolbar buttons (segmented toggle groups used inside popovers). */
+      .seg-btn {
+        height: 24px;
+        padding: 0 7px;
+        border-radius: var(--tb-radius-sm);
+        border: none;
+        background: transparent;
+        color: var(--tb-muted);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background .15s, color .15s;
+      }
+      .seg-btn:hover { color: var(--tb-text); background: rgba(255,255,255,.04); }
+      .seg-btn.active {
+        background: rgba(255,104,44,.18);
+        color: #ff9a73;
+      }
+      .seg-btn svg { display: inline-block; vertical-align: middle; pointer-events: none; }
+      .seg-btn.active svg { color: inherit; }
+
+      .tb-label {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: var(--tb-muted);
+        margin-right: 2px;
+        display: none;
+        align-items: center;
+      }
+      #marker-size, .period-input {
+        width: 38px;
+        height: 26px;
+        border: none;
+        background: transparent;
+        color: var(--tb-text);
+        border-radius: var(--tb-radius-sm);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 0 6px;
+        font-family: inherit;
+      }
+      .period-input { width: 48px; color: var(--tb-accent); }
+      #marker-size:hover, .period-input:hover { background: rgba(255,255,255,.04); }
+      #marker-size:focus, .period-input:focus { outline: none; background: rgba(255,255,255,.06); color: var(--tb-accent); }
+
+      /* Indicator section labels */
+      .ind-label {
+        color: var(--tb-muted);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        white-space: nowrap;
+      }
+
+      /* Indicator pills */
+      .ind-pill {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        height: 26px;
+        padding: 0 8px;
+        border-radius: var(--tb-radius-sm);
+        border: none;
+        background: transparent;
+        color: var(--tb-muted);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: color .15s, background .15s;
+        white-space: nowrap;
+      }
+      .ind-pill:hover { color: var(--tb-text); background: rgba(255,255,255,.04); }
+      .ind-pill input { display: none; }
+      .ind-pill.active {
+        color: #ff9a73;
+        background: rgba(255,104,44,.18);
+      }
+      .ind-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        opacity: .4;
+        transition: opacity .15s;
+      }
+      .ind-pill.active .ind-dot { opacity: 1; }
+
+      /* Editable indicator controls */
+      .indicator-editor { gap: 4px; flex-wrap: nowrap; }
+      .indicator-control {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        height: 26px;
+        padding: 0 6px;
+        border-radius: var(--tb-radius-sm);
+        border: none;
+        color: var(--tb-muted);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .indicator-control:hover { background: rgba(255,255,255,.04); color: var(--tb-text); }
+      .indicator-control:has(input:checked) {
+        color: #ff9a73;
+        background: rgba(255,104,44,.18);
+      }
+      .indicator-control input { display: none; }
+
+      /* Show trades toggle */
+      .toggle-pill {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        height: 26px;
+        padding: 0 7px;
+        border-radius: var(--tb-radius-sm);
+        border: none;
+        background: transparent;
+        color: var(--tb-muted);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: color .15s, background .15s;
+        white-space: nowrap;
+      }
+      .toggle-pill:hover { color: var(--tb-text); background: rgba(255,255,255,.04); }
+      .toggle-pill.active {
+        color: var(--green);
+        background: rgba(15,143,97,.18);
+      }
+      .toggle-pill input { display: none; }
+      .toggle-knob {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        transition: transform .15s;
+      }
+      .toggle-pill.active .toggle-knob { transform: scale(1.25); }
+
+      /* Density dropdown */
+      #density, #interval {
+        width: 62px;
+        height: 26px;
+        background: transparent;
+        border: none;
+        border-radius: var(--tb-radius-sm);
+        color: var(--tb-muted);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 0 8px;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        padding-right: 22px;
+      }
+      #density { width: 66px; }
+      #density:hover, #interval:hover { background: rgba(255,255,255,.04); color: var(--tb-text); }
+      #density:focus, #interval:focus { outline: none; background: rgba(255,255,255,.06); color: var(--tb-text); }
+      #density option, #interval option { background: #242424; color: #e8e8e8; }
+
+      /* Icon buttons */
+      .icon-btn {
+        width: 28px;
+        height: 26px;
+        border-radius: var(--tb-radius-sm);
+        border: none;
+        background: transparent;
+        color: var(--tb-muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color .15s, background .15s;
+        flex-shrink: 0;
+      }
+      .icon-btn:hover { color: var(--tb-text); background: rgba(255,255,255,.04); }
+      .icon-btn.active { color: #ff9a73; background: rgba(255,104,44,.18); }
+
+      /* Provider badge */
+      .badge {
+        display: none;
+        align-items: center;
+        gap: 5px;
+        height: 26px;
+        font-size: 11px;
+        color: var(--tb-muted);
+        white-space: nowrap;
+        margin-left: auto;
+        padding-left: 6px;
+      }
+      .badge-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--green);
+      }
+
+      /* Chart card — hosts toolbar + chart as one attached chrome surface.
+       * Outer top is rounded by the toolbar; outer bottom is rounded by
+       * the chart-host. The single border spans both halves. Background
+       * is dark to match the chrome.
+       * `min-width: 0` is critical: the toolbar's intrinsic width (~1640px)
+       * would otherwise force this card to expand past its grid cell and
+       * cause horizontal document overflow. With it, the toolbar's
+       * overflow-x:auto clips its content, and the card stays in column. */
+      .chart-card {
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--tb-bg);
+        border: 1px solid var(--tb-border);
+        min-width: 0;
+      }
+      .chart-card .chart-body {
+        background: var(--panel);
+        border-top: 1px solid var(--tb-border);
+        border-radius: 0 0 12px 12px;
+        overflow: hidden;
+        flex: 1 1 auto;
+        min-height: 0;
+        min-width: 0;
+        position: relative;
+      }
+      /* The grid column wrapper also needs min-width:0 so its child chart
+       * can shrink. */
+      .content-row > div:first-child { min-width: 0; }
+      #chart-host { position: relative; overflow: hidden; contain: layout paint; margin-left: 44px; touch-action: auto; }
+      /* When a drawing tool is active on a touch device we disable the
+         browser's default touch gestures (pan / pinch / scroll) so the
+         chart canvas can't hijack the touch start. Combined with
+         preventDefault/stopImmediatePropagation in the pointer handler
+         this is what reliably prevents chart-pan while drawing. */
+      #chart-host.drawing-mode { touch-action: none; }
+      #chart { position: relative; }
+      /* Custom DAS execution markers live in a factory-managed overlay div
+       * appended to #chart-host. The factory writes inline styles directly,
+       * so no static CSS rules are needed here — they were ported from
+       * #marker-overlay which used to host these markers. The previous
+       * element was removed when the overlay was extracted to das-overlay.js. */
+
+      /* Drawing overlay layer — sits above markers. Always pointer-events: none
+       * so the chart can pan/zoom underneath; drawing pointer listeners are
+       * attached directly to #chart-host instead. */
+      #draw-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; overflow: hidden; }
+      #draw-overlay svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+
+      /* Drawing-tools toolbar — attached to the left edge as "left chrome",
+       * flush and full height, matching the attached top-chrome design. */
+      .draw-toolbar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        background: rgba(24, 24, 24, 0.95);
+        border-right: 1px solid #333;
+        border-radius: 0;
+        padding: 8px 4px;
+        box-shadow: none;
+        width: 44px;
+      }
+      .draw-btn {
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        background: transparent;
+        color: #888;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background .15s, color .15s;
+        padding: 0;
+      }
+      .draw-btn:hover { background: rgba(255,255,255,.06); color: #eee; }
+      .draw-btn.active { background: rgba(255,104,44,.18); color: #ff9a73; }
+      .draw-btn svg { width: 16px; height: 16px; pointer-events: none; display: block; }
+      .draw-btn-clear { margin-top: 4px; border-top: 1px solid #333; padding-top: 4px; }
+      .draw-btn-clear:hover { color: #c94a35; }
+      .draw-btn-clear.active { background: rgba(201,74,53,.18); color: #e0746b; }
+
+      /* Color picker row — preset swatches shown above the clear button. */
+      .draw-color-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 3px;
+        padding: 4px 0;
+        margin: 2px 0;
+        border-top: 1px solid #333;
+      }
+      .draw-color-swatch {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 2px solid transparent;
+        cursor: pointer;
+        padding: 0;
+        transition: border-color .15s, transform .15s;
+      }
+      .draw-color-swatch:hover { transform: scale(1.15); }
+      .draw-color-swatch.active { border-color: #fff; }
+
+      #chart { height: min(68vh, 620px); min-height: 200px; }
+
+      /* Stats */
+      .stats { padding: 14px 16px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+      .stat { border-left: 3px solid var(--orange); padding-left: 10px; min-width: 0; }
+      .stat span { display: block; color: var(--muted); font-size: 12px; }
+      .stat strong { display: block; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .error { color: var(--red); font-weight: 700; }
+
+      /* ── Main layout: chart + panel ─────────────────────────────────────────── */
+      .content-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 240px;
+        gap: 14px;
+        align-items: start;
+      }
+
+      /* ── Panel ─────────────────────────────────────────────────────────────── */
+      #panel {
+        background: var(--tb-bg);
+        border-radius: 10px;
+        padding: 14px 16px;
+        font-size: 12px;
+        color: var(--tb-text);
+        position: sticky;
+        top: 16px;
+        max-height: calc(100vh - 80px);
+        overflow-y: auto;
+      }
+      #panel::-webkit-scrollbar { width: 4px; }
+      #panel::-webkit-scrollbar-track { background: transparent; }
+      #panel::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+      .p-section { margin-bottom: 16px; }
+      .p-section:last-child { margin-bottom: 0; }
+      .p-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: var(--tb-muted);
+        margin-bottom: 6px;
+      }
+      .p-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .p-row:last-child { margin-bottom: 0; }
+      .p-row span:first-child { color: var(--tb-muted); }
+      .p-row span:last-child { font-weight: 600; font-size: 13px; }
+      .p-val { color: var(--tb-accent); }
+      .p-win { color: var(--green); }
+      .p-loss { color: var(--red); }
+
+      .p-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 8px;
+        border-radius: 99px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .04em;
+        margin-bottom: 4px;
+      }
+      .p-badge.long { background: rgba(15,143,97,.25); color: var(--green); }
+      .p-badge.short { background: rgba(201,74,53,.25); color: var(--red); }
+      .p-badge.win { background: rgba(15,143,97,.25); color: var(--green); }
+      .p-badge.loss { background: rgba(201,74,53,.25); color: var(--red); }
+
+      .p-trade-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+      }
+      .p-trade-sym { font-size: 15px; font-weight: 700; color: var(--tb-accent); }
+      .p-trade-pnl { font-size: 18px; font-weight: 700; margin-left: auto; }
+
+      .p-divider { border: none; border-top: 1px solid #2a2a2a; margin: 10px 0; }
+
+      .p-event {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        margin-bottom: 6px;
+        font-size: 11px;
+      }
+      .p-event-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        margin-top: 4px;
+        flex-shrink: 0;
+      }
+      .p-event-info { flex: 1; }
+      .p-event-label { color: var(--tb-accent); font-weight: 600; }
+      .p-event-detail { color: var(--tb-muted); font-size: 10px; margin-top: 1px; }
+
+      .p-hint {
+        text-align: center;
+        color: var(--tb-muted);
+        font-size: 11px;
+        padding: 24px 0;
+        line-height: 1.6;
+      }
+
+      .p-provider {
+        font-size: 10px;
+        color: var(--tb-muted);
+        border-top: 1px solid #2a2a2a;
+        padding-top: 10px;
+        margin-top: 10px;
+      }
+
+      .trade-list {
+        display: grid;
+        gap: 6px;
+      }
+      .trade-card {
+        width: 100%;
+        border: 1px solid #333;
+        background: #242424;
+        color: var(--tb-text);
+        border-radius: 8px;
+        padding: 8px;
+        text-align: left;
+        cursor: pointer;
+      }
+      .trade-card.active { border-color: var(--orange); background: rgba(255,104,44,.12); }
+      .trade-card-top { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; }
+      .trade-card-sub { color: var(--tb-muted); font-size: 10px; margin-top: 2px; }
+
+      .p-change-pos { color: var(--green); }
+      .p-change-neg { color: var(--red); }
+
+
+      /* Responsive */
+      @media (max-width: 900px) {
+        .content-row { grid-template-columns: 1fr; }
+        #panel { position: static; max-height: 300px; }
+        #toolbar { gap: 4px; }
+        .tb-group { padding-right: 4px; gap: 3px; }
+        .badge { display: none; }
+      }
+      @media (max-width: 680px) {
+        #toolbar { flex-wrap: nowrap; }
+        .tb-group { padding-right: 4px; gap: 3px; }
+        .tb-group.tb-sep { border-left: 1px solid var(--tb-border); padding-left: 6px; }
+        .badge { display: none; }
+        /* Bigger touch targets for dropdown trigger buttons. */
+        .menu-dd-btn { padding: 0 14px; height: 32px; font-size: 13px; }
+        /* Mobile popovers: span the viewport with safe margins so they
+         * can't be clipped by the toolbar's overflow-x:auto scroller or
+         * fall off-screen on narrow viewports. */
+        .menu-dd-pop {
+          position: fixed !important;
+          left: 8px !important;
+          right: 8px !important;
+          top: auto !important;
+          min-width: 0 !important;
+          max-width: calc(100vw - 16px) !important;
+          width: auto !important;
+        }
+      }
+      @media (max-width: 560px) {
+        .stats { grid-template-columns: 1fr 1fr; }
+      }
+
+      /* Fullscreen — keep the attached chrome feel: toolbar visible,
+       * but flush to the viewport edges. Chart body takes the rest. */
+      body.fullscreen #toolbar { border-radius: 0; }
+      body.fullscreen main { margin: 0; width: 100vw; max-width: 100vw; gap: 0; }
+      body.fullscreen .content-row { grid-template-columns: 1fr 320px; gap: 0; }
+      body.fullscreen .chart-card { border-radius: 0; border: none; box-shadow: none; }
+      body.fullscreen .chart-card .chart-body { border-radius: 0; }
+      body.fullscreen #chart { height: calc(100vh - 50px); min-height: 0; }
+      body.fullscreen #panel { position: static; height: 100vh; max-height: 100vh; border-radius: 0; border-left: 1px solid #2a2a2a; }
+
+      /* ── Compact menu dropdowns (chart type, indicators, execution) ─────────── */
+      /* Chart type uses a native select styled to match the toolbar. */
+      .menu-dd {
+        height: 26px;
+        background: transparent;
+        border: none;
+        border-radius: var(--tb-radius-sm);
+        color: var(--tb-text);
+        font-size: 12px;
+        font-weight: 700;
+        padding: 0 22px 0 10px;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        white-space: nowrap;
+      }
+      .menu-dd:hover { background: rgba(255,255,255,.04); }
+      .menu-dd:focus { outline: none; background: rgba(255,255,255,.06); color: var(--tb-accent); }
+      .menu-dd option { background: #242424; color: #e8e8e8; }
+
+      /* Indicators & Exec use a button + absolutely positioned popover. */
+      .menu-dd-wrap { position: relative; z-index: 60; }
+      .menu-dd-btn {
+        height: 26px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        border: none;
+        background: transparent;
+        border-radius: var(--tb-radius-sm);
+        color: var(--tb-muted);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background .15s, color .15s;
+      }
+      .menu-dd-btn:hover { background: rgba(255,255,255,.04); color: var(--tb-text); }
+      .menu-dd-btn[aria-expanded="true"] {
+        background: rgba(255,255,255,.06);
+        color: var(--tb-accent);
+      }
+      .menu-dd-btn.has-active {
+        color: #ff9a73;
+      }
+      .menu-dd-caret {
+        width: 8px;
+        height: 8px;
+        border-right: 1.5px solid currentColor;
+        border-bottom: 1.5px solid currentColor;
+        transform: rotate(45deg) translate(-1px, -1px);
+        display: inline-block;
+      }
+
+      .menu-dd-pop {
+        position: fixed;
+        z-index: 1000;
+        min-width: 220px;
+        background: #1f1f1f;
+        border: 1px solid var(--tb-border);
+        border-radius: 8px;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .menu-dd-pop[hidden] { display: none; }
+
+      .menu-dd-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 4px;
+        border-radius: 6px;
+      }
+      .menu-dd-row-tight { padding: 3px 4px; gap: 6px; flex-wrap: nowrap; }
+      .menu-dd-row-shapes { gap: 4px; }
+      .menu-dd-label {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: var(--tb-muted);
+        margin-right: 2px;
+      }
+      /* Inside the popover the period inputs need a touch more width. */
+      .menu-dd-pop .period-input { width: 84px; height: 24px; }
+      .menu-dd-pop .indicator-control { height: 24px; padding: 0 8px; }
+      .menu-dd-pop #density {
+        width: auto;
+        min-width: 110px;
+        height: 24px;
+      }
+      .menu-dd-pop #marker-size {
+        width: 60px;
+        height: 24px;
+        margin-left: auto;
+      }
+      .menu-dd-pop .toggle-pill { height: 24px; padding: 0 8px; font-size: 11px; }
+      .menu-dd-pop .seg-btn { height: 24px; padding: 0 6px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="kicker">Yahoo Finance daily data / Lightweight Charts</p>
+        <h1>Interactive ticker chart.</h1>
+        <p class="lede">Candles + volume from Yahoo's chart endpoint. Timeframe selector changes daily range. SMA/EMA overlays mirror the lightweight-charts-python line-indicator pattern: set OHLCV data, then add line series keyed by time. <a href="/marker-concepts.html" style="color:var(--orange);font-weight:700;">Marker concepts</a></p>
+      </header>
+
+      <!-- ── Chart + panel ─────────────────────────────────────────────── -->
+      <div class="content-row">
+        <div>
+          <section class="chart-card">
+            <!-- ── Toolbar (attached top chrome) ──────────────────── -->
+            <div id="toolbar" role="toolbar" aria-label="Chart controls">
+
+              <!-- Ticker -->
+              <div class="tb-group">
+                <input id="symbol" value="AAPL" autocomplete="off" placeholder="AAPL, SPY, ^GSPC" aria-label="Ticker symbol" />
+              </div>
+
+              <!-- Range dropdown -->
+              <div class="tb-group tb-sep">
+                <label class="tb-label" for="range">Range</label>
+                <select id="range" aria-label="Lookback range">
+                  <option value="7d">1W</option>
+                  <option value="1mo">1M</option>
+                  <option value="1y" selected>1Y</option>
+                  <option value="5y">5Y</option>
+                  <option value="10y">10Y</option>
+                </select>
+              </div>
+
+              <!-- Candle interval -->
+              <div class="tb-group">
+                <label class="tb-label" for="interval">Bar</label>
+                <select id="interval" aria-label="Candle timeframe">
+                  <option value="1m">1m</option>
+                  <option value="2m">2m</option>
+                  <option value="3m">3m</option>
+                  <option value="5m">5m</option>
+                  <option value="10m">10m</option>
+                  <option value="15m">15m</option>
+                  <option value="30m">30m</option>
+                  <option value="1h">1H</option>
+                  <option value="4h">4H</option>
+                  <option value="12h">12H</option>
+                  <option value="24h">24H</option>
+                  <option value="1d" selected>1D</option>
+                  <option value="1wk">1W</option>
+                  <option value="1mo">1M</option>
+                  <option value="1y">1Y</option>
+                </select>
+              </div>
+
+              <!-- Chart type (icon toggle: candles ↔ line) -->
+              <div class="tb-group tb-sep">
+                <button type="button" id="chart-type-btn" class="icon-btn" title="Toggle chart type (candles / line)" aria-label="Toggle chart type" aria-pressed="false">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="8" width="4" height="9" fill="currentColor" stroke="none"/><line x1="8" y1="5" x2="8" y2="8"/><line x1="8" y1="17" x2="8" y2="20"/><rect x="14" y="5" width="4" height="6" fill="currentColor" stroke="none"/><line x1="16" y1="3" x2="16" y2="5"/><line x1="16" y1="11" x2="16" y2="14"/></svg>
+                </button>
+                <select id="chart-type-select" class="menu-dd" aria-label="Chart type" style="display:none">
+                  <option value="candles" selected>Candle</option>
+                  <option value="line">Line</option>
+                </select>
+              </div>
+
+              <!-- Indicators dropdown -->
+              <div class="tb-group menu-dd-wrap">
+                <button type="button" id="indicator-menu-btn" class="menu-dd-btn" aria-haspopup="true" aria-expanded="false" aria-label="Indicators">
+                  <span class="menu-dd-caret" aria-hidden="true"></span>
+                  Indicators
+                </button>
+                <div id="indicator-menu" class="menu-dd-pop" role="dialog" aria-label="Indicators" hidden>
+                  <div class="menu-dd-row">
+                    <label class="indicator-control" for="sma-enabled"><input type="checkbox" id="sma-enabled" checked /> SMA</label>
+                    <input class="period-input" id="sma-periods" value="20,50" aria-label="SMA periods" title="Comma-separated SMA periods" />
+                  </div>
+                  <div class="menu-dd-row">
+                    <label class="indicator-control" for="ema-enabled"><input type="checkbox" id="ema-enabled" /> EMA</label>
+                    <input class="period-input" id="ema-periods" value="9,10,20,30" aria-label="EMA periods" title="Comma-separated EMA periods" />
+                  </div>
+                  <div class="menu-dd-row">
+                    <label class="indicator-control" for="vwap-enabled"><input type="checkbox" id="vwap-enabled" /> VWAP</label>
+                  </div>
+                  <div class="menu-dd-row">
+                    <label class="indicator-control" for="bb-enabled"><input type="checkbox" id="bb-enabled" /> BB</label>
+                    <input class="period-input" id="bb-period" value="20" aria-label="Bollinger Bands period" title="Bollinger Bands period" style="width:48px" />
+                    <input class="period-input" id="bb-mult" value="2" step="0.1" aria-label="Bollinger Bands std dev multiplier" title="Bollinger Bands std dev multiplier" style="width:48px" />
+                  </div>
+                  <div class="menu-dd-row">
+                    <label class="indicator-control" for="rsi-enabled"><input type="checkbox" id="rsi-enabled" /> RSI</label>
+                    <input class="period-input" id="rsi-period" value="14" aria-label="RSI period" title="RSI period" style="width:48px" />
+                  </div>
+                  <div class="menu-dd-row">
+                    <label class="indicator-control" for="pdhlc-enabled"><input type="checkbox" id="pdhlc-enabled" /> Prev Day HLC</label>
+                  </div>
+                  <div class="menu-dd-row">
+                    <label class="indicator-control" for="pwhlc-enabled"><input type="checkbox" id="pwhlc-enabled" /> Prev Week HLC</label>
+                  </div>
+                  <div class="menu-dd-row">
+                    <label class="indicator-control" for="pmhlc-enabled"><input type="checkbox" id="pmhlc-enabled" /> Prev Month HLC</label>
+                  </div>
+                  <div class="menu-dd-row">
+                    <label class="indicator-control" for="volume-pane-enabled"><input type="checkbox" id="volume-pane-enabled" /> Vol (pane)</label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Execution dropdown -->
+              <div class="tb-group menu-dd-wrap tb-sep">
+                <button type="button" id="execution-menu-btn" class="menu-dd-btn" aria-haspopup="true" aria-expanded="false" aria-label="Execution options">
+                  <span class="menu-dd-caret" aria-hidden="true"></span>
+                  Exec
+                </button>
+                <div id="execution-menu" class="menu-dd-pop" role="dialog" aria-label="Execution options" hidden>
+                  <div class="menu-dd-row menu-dd-row-tight">
+                    <label class="toggle-pill active" id="show-trades-pill">
+                      <span class="toggle-knob"></span>Show trades
+                    </label>
+                  </div>
+                  <div class="menu-dd-row menu-dd-row-tight">
+                    <span class="menu-dd-label">Density</span>
+                    <select id="density" aria-label="Marker density">
+                      <option value="all">All</option>
+                      <option value="selected">Selected</option>
+                      <option value="entries">Entries</option>
+                    </select>
+                  </div>
+                  <div class="menu-dd-row menu-dd-row-tight menu-dd-row-shapes" role="group" aria-label="Marker shape">
+                    <span class="menu-dd-label">Shape</span>
+                    <button class="seg-btn active" data-shape="T1" title="T1 · Solid equilateral"><svg width="14" height="14" viewBox="0 0 18 18"><polygon points="9,3 15,15 3,15" fill="currentColor"/></svg></button>
+                    <button class="seg-btn" data-shape="T7" title="T7 · Filled + halo"><svg width="14" height="14" viewBox="0 0 18 18"><polygon points="9,3 15,15 3,15" fill="none" stroke="currentColor" stroke-width="2"/><polygon points="9,5 13,14 5,14" fill="currentColor"/></svg></button>
+                    <button class="seg-btn" data-shape="D1" title="D1 · Solid diamond"><svg width="14" height="14" viewBox="0 0 18 18"><polygon points="9,2 16,9 9,16 2,9" fill="currentColor"/></svg></button>
+                    <button class="seg-btn" data-shape="D6" title="D6 · Diamond + halo"><svg width="14" height="14" viewBox="0 0 18 18"><polygon points="9,2 16,9 9,16 2,9" fill="none" stroke="currentColor" stroke-width="2"/><polygon points="9,4 14,9 9,14 4,9" fill="currentColor"/></svg></button>
+                  </div>
+                  <div class="menu-dd-row menu-dd-row-tight">
+                    <label class="tb-label menu-dd-label" for="marker-size">Size</label>
+                    <input type="number" id="marker-size" min="1" max="20" step="0.5" value="6" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Reset -->
+              <div class="tb-group">
+                <button class="icon-btn" id="reset-btn" title="Reset view" aria-label="Reset view">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                  </svg>
+                </button>
+                <button class="icon-btn" id="fullscreen-btn" title="Fullscreen" aria-label="Toggle fullscreen">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+                    <path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Badge -->
+              <div class="badge" aria-live="polite" id="badge">
+                <span class="badge-dot"></span>
+                <span>Yahoo Finance · 1d · — bars · —</span>
+              </div>
+
+            </div>
+            <!-- ── /Toolbar ──────────────────────────────────────── -->
+
+            <!-- Chart body — the white canvas area below the chrome -->
+            <div class="chart-body">
+              <div class="draw-toolbar" id="draw-toolbar" role="toolbar" aria-label="Drawing tools">
+                <button class="draw-btn active" data-tool="cursor" title="Cursor (Esc)" aria-label="Cursor">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>
+                </button>
+                <button class="draw-btn" data-tool="pen" title="Free draw" aria-label="Free draw">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                </button>
+                <button class="draw-btn" data-tool="rect" title="Rectangle" aria-label="Rectangle">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                </button>
+                <button class="draw-btn" data-tool="line" title="Trend line" aria-label="Trend line">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="19" x2="19" y2="5"/><circle cx="5" cy="19" r="1.5" fill="currentColor"/><circle cx="19" cy="5" r="1.5" fill="currentColor"/></svg>
+                </button>
+                <button class="draw-btn" data-tool="fib" title="Fibonacci retracement" aria-label="Fibonacci retracement">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="3" x2="21" y2="3" stroke-dasharray="2 2"/><line x1="3" y1="7" x2="21" y2="7" stroke-dasharray="2 2"/><line x1="3" y1="11" x2="21" y2="11" stroke-dasharray="2 2"/><line x1="3" y1="15" x2="21" y2="15" stroke-dasharray="2 2"/><line x1="3" y1="19" x2="21" y2="19" stroke-dasharray="2 2"/><line x1="6" y1="3" x2="6" y2="21" stroke-width="2"/></svg>
+                </button>
+                <div class="draw-color-row" role="group" aria-label="Drawing color">
+                  <button class="draw-color-swatch active" data-color="#ff682c" style="background:#ff682c" title="Orange" aria-label="Orange"></button>
+                  <button class="draw-color-swatch" data-color="#5f8cff" style="background:#5f8cff" title="Blue" aria-label="Blue"></button>
+                  <button class="draw-color-swatch" data-color="#0f8f61" style="background:#0f8f61" title="Green" aria-label="Green"></button>
+                  <button class="draw-color-swatch" data-color="#c94a35" style="background:#c94a35" title="Red" aria-label="Red"></button>
+                  <button class="draw-color-swatch" data-color="#e8e8e8" style="background:#e8e8e8" title="White" aria-label="White"></button>
+                  <button class="draw-color-swatch" data-color="#8257e5" style="background:#8257e5" title="Purple" aria-label="Purple"></button>
+                </div>
+                <button class="draw-btn draw-btn-clear" data-tool="clear" title="Clear all drawings" aria-label="Clear all drawings">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                </button>
+              </div>
+              <div id="chart-host">
+                <div id="chart"></div>
+                <div id="draw-overlay"><svg xmlns="http://www.w3.org/2000/svg"></svg></div>
+              </div>
+            </div>
+          </section>
+          <section class="stats" id="stats" aria-live="polite"></section>
+        </div>
+        <aside id="panel" aria-label="Observability panel">
+          <div class="p-hint">↑ Enable Show trades above, then click a marker to inspect</div>
+        </aside>
+      </div>
+    </main>
+
+    <script>
+      const palette = ['#ff682c', '#816729', '#2878ff', '#8257e5', '#0f8f61', '#c94a35'];
+      const chartEl = document.querySelector('#chart');
+      const statsEl = document.querySelector('#stats');
+      const badgeEl = document.querySelector('#badge');
+      const symbolInput = document.querySelector('#symbol');
+      const intervalSelect = document.querySelector('#interval');
+      const rangeSelect = document.querySelector('#range');
+      const densitySelect = document.querySelector('#density');
+      const resetBtn = document.querySelector('#reset-btn');
+      const fullscreenBtn = document.querySelector('#fullscreen-btn');
+      const showTradesPill = document.querySelector('#show-trades-pill');
+      const smaEnabled = document.querySelector('#sma-enabled');
+      const smaPeriodsInput = document.querySelector('#sma-periods');
+      const emaEnabled = document.querySelector('#ema-enabled');
+      const emaPeriodsInput = document.querySelector('#ema-periods');
+      const vwapEnabled = document.querySelector('#vwap-enabled');
+      const bbEnabled = document.querySelector('#bb-enabled');
+      const bbPeriodInput = document.querySelector('#bb-period');
+      const bbMultInput = document.querySelector('#bb-mult');
+      const rsiEnabled = document.querySelector('#rsi-enabled');
+      const rsiPeriodInput = document.querySelector('#rsi-period');
+      const pdhlcEnabled = document.querySelector('#pdhlc-enabled');
+      const pwhlcEnabled = document.querySelector('#pwhlc-enabled');
+      const pmhlcEnabled = document.querySelector('#pmhlc-enabled');
+      const volumePaneEnabled = document.querySelector('#volume-pane-enabled');
+
+      let chart, candleSeries, volumeSeries, lineSeries = [], tradeMarkers = [], markerPrimitive = null, priceLines = [];
+      let lastPayload = null;
+      let chartType = 'candles';
+      let showTrades = true;
+      let density = 'all';
+      let markerShape = 'T1';
+      let selectedTradeId = 'trade-4';
+      let lazyLoading = false;
+      let lazyExhausted = false;
+      let lazyLastBefore = null;
+      let lazySuppressUntil = 0;
+      // Volume layout: when true, volume is rendered in a wider bottom strip
+      // (simulated "separate pane" inside the same chart canvas). When false,
+      // volume is a compact strip at the bottom 18% of the price pane.
+      let volumeSeparate = false;
+
+      // ── Demo trade data ──────────────────────────────────────────────────────
+      // Symbol-aware demo executions. Generated from real Yahoo 1h OHLC for each
+      // symbol so entries/exits have exact Unix-second execution times. Marker X
+      // snaps to the containing bar for the selected timeframe (1h, 4h, 1d, etc.)
+      // while marker Y stays on the execution price.
+      const DEMO_TRADES_BY_SYMBOL = {
+        "AAPL": [
+                {
+                        "id": "aapl-trade-0",
+                        "direction": "long",
+                        "entryTime": 1750951800,
+                        "entryTimeLabel": "2025-06-26 15:30 UTC",
+                        "entryPrice": 200.12,
+                        "stopPrice": 198.46,
+                        "targetPrice": 201.01,
+                        "exitTime": 1751290200,
+                        "exitTimeLabel": "2025-06-30 13:30 UTC",
+                        "exitPrice": 201.01,
+                        "exitReason": "Target hit",
+                        "mfe": 3.1,
+                        "mae": -0.66,
+                        "pnl": 0.89,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on AAPL",
+                                        "time": 1750951800,
+                                        "timeLabel": "2025-06-26 15:30 UTC",
+                                        "price": 200.12
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1750951800,
+                                        "timeLabel": "2025-06-26 15:30 UTC",
+                                        "price": 200.12
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1751290200,
+                                        "timeLabel": "2025-06-30 13:30 UTC",
+                                        "price": 201.01
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1751290200,
+                                        "timeLabel": "2025-06-30 13:30 UTC",
+                                        "price": 201.01
+                                }
+                        ]
+                },
+                {
+                        "id": "aapl-trade-1",
+                        "direction": "long",
+                        "entryTime": 1752607800,
+                        "entryTimeLabel": "2025-07-15 19:30 UTC",
+                        "entryPrice": 209.01,
+                        "stopPrice": 207.6,
+                        "targetPrice": 211.28,
+                        "exitTime": 1752773400,
+                        "exitTimeLabel": "2025-07-17 17:30 UTC",
+                        "exitPrice": 211.28,
+                        "exitReason": "Target hit",
+                        "mfe": 3.39,
+                        "mae": -0.37,
+                        "pnl": 2.27,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on AAPL",
+                                        "time": 1752607800,
+                                        "timeLabel": "2025-07-15 19:30 UTC",
+                                        "price": 209.01
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1752607800,
+                                        "timeLabel": "2025-07-15 19:30 UTC",
+                                        "price": 209.01
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1752773400,
+                                        "timeLabel": "2025-07-17 17:30 UTC",
+                                        "price": 211.28
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1752773400,
+                                        "timeLabel": "2025-07-17 17:30 UTC",
+                                        "price": 211.28
+                                }
+                        ]
+                },
+                {
+                        "id": "aapl-trade-2",
+                        "direction": "short",
+                        "entryTime": 1754055000,
+                        "entryTimeLabel": "2025-08-01 13:30 UTC",
+                        "entryPrice": 205.36,
+                        "stopPrice": 214.65,
+                        "targetPrice": 202.32,
+                        "exitTime": 1754332200,
+                        "exitTimeLabel": "2025-08-04 18:30 UTC",
+                        "exitPrice": 202.32,
+                        "exitReason": "Target hit",
+                        "mfe": 3.86,
+                        "mae": -8.22,
+                        "pnl": 3.04,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Short setup on AAPL",
+                                        "time": 1754055000,
+                                        "timeLabel": "2025-08-01 13:30 UTC",
+                                        "price": 205.36
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Short entry",
+                                        "time": 1754055000,
+                                        "timeLabel": "2025-08-01 13:30 UTC",
+                                        "price": 205.36
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1754332200,
+                                        "timeLabel": "2025-08-04 18:30 UTC",
+                                        "price": 202.32
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1754332200,
+                                        "timeLabel": "2025-08-04 18:30 UTC",
+                                        "price": 202.32
+                                }
+                        ]
+                },
+                {
+                        "id": "aapl-trade-3",
+                        "direction": "short",
+                        "entryTime": 1755613800,
+                        "entryTimeLabel": "2025-08-19 14:30 UTC",
+                        "entryPrice": 231.32,
+                        "stopPrice": 233.43,
+                        "targetPrice": 225.96,
+                        "exitTime": 1755718200,
+                        "exitTimeLabel": "2025-08-20 19:30 UTC",
+                        "exitPrice": 225.96,
+                        "exitReason": "Target hit",
+                        "mfe": 5.55,
+                        "mae": -0.95,
+                        "pnl": 5.36,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Short setup on AAPL",
+                                        "time": 1755613800,
+                                        "timeLabel": "2025-08-19 14:30 UTC",
+                                        "price": 231.32
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Short entry",
+                                        "time": 1755613800,
+                                        "timeLabel": "2025-08-19 14:30 UTC",
+                                        "price": 231.32
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1755718200,
+                                        "timeLabel": "2025-08-20 19:30 UTC",
+                                        "price": 225.96
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1755718200,
+                                        "timeLabel": "2025-08-20 19:30 UTC",
+                                        "price": 225.96
+                                }
+                        ]
+                },
+                {
+                        "id": "aapl-trade-4",
+                        "direction": "short",
+                        "entryTime": 1757086200,
+                        "entryTimeLabel": "2025-09-05 15:30 UTC",
+                        "entryPrice": 238.77,
+                        "stopPrice": 241.52,
+                        "targetPrice": 236.31,
+                        "exitTime": 1757424600,
+                        "exitTimeLabel": "2025-09-09 13:30 UTC",
+                        "exitPrice": 236.31,
+                        "exitReason": "Target hit",
+                        "mfe": 2.7,
+                        "mae": -1.54,
+                        "pnl": 2.46,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Short setup on AAPL",
+                                        "time": 1757086200,
+                                        "timeLabel": "2025-09-05 15:30 UTC",
+                                        "price": 238.77
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Short entry",
+                                        "time": 1757086200,
+                                        "timeLabel": "2025-09-05 15:30 UTC",
+                                        "price": 238.77
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1757424600,
+                                        "timeLabel": "2025-09-09 13:30 UTC",
+                                        "price": 236.31
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1757424600,
+                                        "timeLabel": "2025-09-09 13:30 UTC",
+                                        "price": 236.31
+                                }
+                        ]
+                }
+        ],
+        "MSFT": [
+                {
+                        "id": "msft-trade-0",
+                        "direction": "long",
+                        "entryTime": 1750951800,
+                        "entryTimeLabel": "2025-06-26 15:30 UTC",
+                        "entryPrice": 493.87,
+                        "stopPrice": 490.56,
+                        "targetPrice": 496.06,
+                        "exitTime": 1751290200,
+                        "exitTimeLabel": "2025-06-30 13:30 UTC",
+                        "exitPrice": 496.06,
+                        "exitReason": "Target hit",
+                        "mfe": 5.42,
+                        "mae": -0.84,
+                        "pnl": 2.19,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on MSFT",
+                                        "time": 1750951800,
+                                        "timeLabel": "2025-06-26 15:30 UTC",
+                                        "price": 493.87
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1750951800,
+                                        "timeLabel": "2025-06-26 15:30 UTC",
+                                        "price": 493.87
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1751290200,
+                                        "timeLabel": "2025-06-30 13:30 UTC",
+                                        "price": 496.06
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1751290200,
+                                        "timeLabel": "2025-06-30 13:30 UTC",
+                                        "price": 496.06
+                                }
+                        ]
+                },
+                {
+                        "id": "msft-trade-1",
+                        "direction": "long",
+                        "entryTime": 1752607800,
+                        "entryTimeLabel": "2025-07-15 19:30 UTC",
+                        "entryPrice": 505.63,
+                        "stopPrice": 499.38,
+                        "targetPrice": 512.14,
+                        "exitTime": 1752773400,
+                        "exitTimeLabel": "2025-07-17 17:30 UTC",
+                        "exitPrice": 512.14,
+                        "exitReason": "Target hit",
+                        "mfe": 7.74,
+                        "mae": -3.74,
+                        "pnl": 6.51,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on MSFT",
+                                        "time": 1752607800,
+                                        "timeLabel": "2025-07-15 19:30 UTC",
+                                        "price": 505.63
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1752607800,
+                                        "timeLabel": "2025-07-15 19:30 UTC",
+                                        "price": 505.63
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1752773400,
+                                        "timeLabel": "2025-07-17 17:30 UTC",
+                                        "price": 512.14
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1752773400,
+                                        "timeLabel": "2025-07-17 17:30 UTC",
+                                        "price": 512.14
+                                }
+                        ]
+                },
+                {
+                        "id": "msft-trade-2",
+                        "direction": "long",
+                        "entryTime": 1754055000,
+                        "entryTimeLabel": "2025-08-01 13:30 UTC",
+                        "entryPrice": 527.95,
+                        "stopPrice": 518.26,
+                        "targetPrice": 535.09,
+                        "exitTime": 1754332200,
+                        "exitTimeLabel": "2025-08-04 18:30 UTC",
+                        "exitPrice": 535.09,
+                        "exitReason": "Target hit",
+                        "mfe": 10.3,
+                        "mae": -7.09,
+                        "pnl": 7.14,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on MSFT",
+                                        "time": 1754055000,
+                                        "timeLabel": "2025-08-01 13:30 UTC",
+                                        "price": 527.95
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1754055000,
+                                        "timeLabel": "2025-08-01 13:30 UTC",
+                                        "price": 527.95
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1754332200,
+                                        "timeLabel": "2025-08-04 18:30 UTC",
+                                        "price": 535.09
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1754332200,
+                                        "timeLabel": "2025-08-04 18:30 UTC",
+                                        "price": 535.09
+                                }
+                        ]
+                },
+                {
+                        "id": "msft-trade-3",
+                        "direction": "short",
+                        "entryTime": 1755613800,
+                        "entryTimeLabel": "2025-08-19 14:30 UTC",
+                        "entryPrice": 509.54,
+                        "stopPrice": 514.47,
+                        "targetPrice": 505.46,
+                        "exitTime": 1755718200,
+                        "exitTimeLabel": "2025-08-20 19:30 UTC",
+                        "exitPrice": 505.46,
+                        "exitReason": "Target hit",
+                        "mfe": 5.1,
+                        "mae": -2.37,
+                        "pnl": 4.08,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Short setup on MSFT",
+                                        "time": 1755613800,
+                                        "timeLabel": "2025-08-19 14:30 UTC",
+                                        "price": 509.54
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Short entry",
+                                        "time": 1755613800,
+                                        "timeLabel": "2025-08-19 14:30 UTC",
+                                        "price": 509.54
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1755718200,
+                                        "timeLabel": "2025-08-20 19:30 UTC",
+                                        "price": 505.46
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1755718200,
+                                        "timeLabel": "2025-08-20 19:30 UTC",
+                                        "price": 505.46
+                                }
+                        ]
+                },
+                {
+                        "id": "msft-trade-4",
+                        "direction": "long",
+                        "entryTime": 1757086200,
+                        "entryTimeLabel": "2025-09-05 15:30 UTC",
+                        "entryPrice": 496.85,
+                        "stopPrice": 489.91,
+                        "targetPrice": 500.9,
+                        "exitTime": 1757424600,
+                        "exitTimeLabel": "2025-09-09 13:30 UTC",
+                        "exitPrice": 500.9,
+                        "exitReason": "Target hit",
+                        "mfe": 5.4,
+                        "mae": -4.48,
+                        "pnl": 4.05,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on MSFT",
+                                        "time": 1757086200,
+                                        "timeLabel": "2025-09-05 15:30 UTC",
+                                        "price": 496.85
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1757086200,
+                                        "timeLabel": "2025-09-05 15:30 UTC",
+                                        "price": 496.85
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1757424600,
+                                        "timeLabel": "2025-09-09 13:30 UTC",
+                                        "price": 500.9
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1757424600,
+                                        "timeLabel": "2025-09-09 13:30 UTC",
+                                        "price": 500.9
+                                }
+                        ]
+                }
+        ],
+        "NVDA": [
+                {
+                        "id": "nvda-trade-0",
+                        "direction": "long",
+                        "entryTime": 1750951800,
+                        "entryTimeLabel": "2025-06-26 15:30 UTC",
+                        "entryPrice": 155.62,
+                        "stopPrice": 154.04,
+                        "targetPrice": 157.1,
+                        "exitTime": 1751290200,
+                        "exitTimeLabel": "2025-06-30 13:30 UTC",
+                        "exitPrice": 157.1,
+                        "exitReason": "Target hit",
+                        "mfe": 3.09,
+                        "mae": -0.81,
+                        "pnl": 1.48,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on NVDA",
+                                        "time": 1750951800,
+                                        "timeLabel": "2025-06-26 15:30 UTC",
+                                        "price": 155.62
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1750951800,
+                                        "timeLabel": "2025-06-26 15:30 UTC",
+                                        "price": 155.62
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1751290200,
+                                        "timeLabel": "2025-06-30 13:30 UTC",
+                                        "price": 157.1
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1751290200,
+                                        "timeLabel": "2025-06-30 13:30 UTC",
+                                        "price": 157.1
+                                }
+                        ]
+                },
+                {
+                        "id": "nvda-trade-1",
+                        "direction": "long",
+                        "entryTime": 1752607800,
+                        "entryTimeLabel": "2025-07-15 19:30 UTC",
+                        "entryPrice": 170.55,
+                        "stopPrice": 168.06,
+                        "targetPrice": 173.3,
+                        "exitTime": 1752773400,
+                        "exitTimeLabel": "2025-07-17 17:30 UTC",
+                        "exitPrice": 173.3,
+                        "exitReason": "Target hit",
+                        "mfe": 3.61,
+                        "mae": -1.65,
+                        "pnl": 2.75,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on NVDA",
+                                        "time": 1752607800,
+                                        "timeLabel": "2025-07-15 19:30 UTC",
+                                        "price": 170.55
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1752607800,
+                                        "timeLabel": "2025-07-15 19:30 UTC",
+                                        "price": 170.55
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1752773400,
+                                        "timeLabel": "2025-07-17 17:30 UTC",
+                                        "price": 173.3
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1752773400,
+                                        "timeLabel": "2025-07-17 17:30 UTC",
+                                        "price": 173.3
+                                }
+                        ]
+                },
+                {
+                        "id": "nvda-trade-2",
+                        "direction": "long",
+                        "entryTime": 1754055000,
+                        "entryTimeLabel": "2025-08-01 13:30 UTC",
+                        "entryPrice": 174.97,
+                        "stopPrice": 170.04,
+                        "targetPrice": 179.31,
+                        "exitTime": 1754332200,
+                        "exitTimeLabel": "2025-08-04 18:30 UTC",
+                        "exitPrice": 179.31,
+                        "exitReason": "Target hit",
+                        "mfe": 4.84,
+                        "mae": -4.08,
+                        "pnl": 4.34,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on NVDA",
+                                        "time": 1754055000,
+                                        "timeLabel": "2025-08-01 13:30 UTC",
+                                        "price": 174.97
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1754055000,
+                                        "timeLabel": "2025-08-01 13:30 UTC",
+                                        "price": 174.97
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1754332200,
+                                        "timeLabel": "2025-08-04 18:30 UTC",
+                                        "price": 179.31
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1754332200,
+                                        "timeLabel": "2025-08-04 18:30 UTC",
+                                        "price": 179.31
+                                }
+                        ]
+                },
+                {
+                        "id": "nvda-trade-3",
+                        "direction": "short",
+                        "entryTime": 1755613800,
+                        "entryTimeLabel": "2025-08-19 14:30 UTC",
+                        "entryPrice": 178.28,
+                        "stopPrice": 180.04,
+                        "targetPrice": 175.39,
+                        "exitTime": 1755718200,
+                        "exitTimeLabel": "2025-08-20 19:30 UTC",
+                        "exitPrice": 175.39,
+                        "exitReason": "Target hit",
+                        "mfe": 9.48,
+                        "mae": -0.86,
+                        "pnl": 2.89,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Short setup on NVDA",
+                                        "time": 1755613800,
+                                        "timeLabel": "2025-08-19 14:30 UTC",
+                                        "price": 178.28
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Short entry",
+                                        "time": 1755613800,
+                                        "timeLabel": "2025-08-19 14:30 UTC",
+                                        "price": 178.28
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1755718200,
+                                        "timeLabel": "2025-08-20 19:30 UTC",
+                                        "price": 175.39
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1755718200,
+                                        "timeLabel": "2025-08-20 19:30 UTC",
+                                        "price": 175.39
+                                }
+                        ]
+                },
+                {
+                        "id": "nvda-trade-4",
+                        "direction": "long",
+                        "entryTime": 1757086200,
+                        "entryTimeLabel": "2025-09-05 15:30 UTC",
+                        "entryPrice": 166.37,
+                        "stopPrice": 165.03,
+                        "targetPrice": 168.08,
+                        "exitTime": 1757424600,
+                        "exitTimeLabel": "2025-09-09 13:30 UTC",
+                        "exitPrice": 168.08,
+                        "exitReason": "Target hit",
+                        "mfe": 4.59,
+                        "mae": -0.51,
+                        "pnl": 1.71,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on NVDA",
+                                        "time": 1757086200,
+                                        "timeLabel": "2025-09-05 15:30 UTC",
+                                        "price": 166.37
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1757086200,
+                                        "timeLabel": "2025-09-05 15:30 UTC",
+                                        "price": 166.37
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1757424600,
+                                        "timeLabel": "2025-09-09 13:30 UTC",
+                                        "price": 168.08
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1757424600,
+                                        "timeLabel": "2025-09-09 13:30 UTC",
+                                        "price": 168.08
+                                }
+                        ]
+                }
+        ],
+        "TSLA": [
+                {
+                        "id": "tsla-trade-0",
+                        "direction": "short",
+                        "entryTime": 1750951800,
+                        "entryTimeLabel": "2025-06-26 15:30 UTC",
+                        "entryPrice": 327.81,
+                        "stopPrice": 331.21,
+                        "targetPrice": 319.46,
+                        "exitTime": 1751290200,
+                        "exitTimeLabel": "2025-06-30 13:30 UTC",
+                        "exitPrice": 319.46,
+                        "exitReason": "Target hit",
+                        "mfe": 10.31,
+                        "mae": -1.75,
+                        "pnl": 8.35,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Short setup on TSLA",
+                                        "time": 1750951800,
+                                        "timeLabel": "2025-06-26 15:30 UTC",
+                                        "price": 327.81
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Short entry",
+                                        "time": 1750951800,
+                                        "timeLabel": "2025-06-26 15:30 UTC",
+                                        "price": 327.81
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1751290200,
+                                        "timeLabel": "2025-06-30 13:30 UTC",
+                                        "price": 319.46
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1751290200,
+                                        "timeLabel": "2025-06-30 13:30 UTC",
+                                        "price": 319.46
+                                }
+                        ]
+                },
+                {
+                        "id": "tsla-trade-1",
+                        "direction": "long",
+                        "entryTime": 1752607800,
+                        "entryTimeLabel": "2025-07-15 19:30 UTC",
+                        "entryPrice": 310.66,
+                        "stopPrice": 309.11,
+                        "targetPrice": 319.01,
+                        "exitTime": 1752773400,
+                        "exitTimeLabel": "2025-07-17 17:30 UTC",
+                        "exitPrice": 319.01,
+                        "exitReason": "Target hit",
+                        "mfe": 13.68,
+                        "mae": 0.0,
+                        "pnl": 8.35,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on TSLA",
+                                        "time": 1752607800,
+                                        "timeLabel": "2025-07-15 19:30 UTC",
+                                        "price": 310.66
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1752607800,
+                                        "timeLabel": "2025-07-15 19:30 UTC",
+                                        "price": 310.66
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1752773400,
+                                        "timeLabel": "2025-07-17 17:30 UTC",
+                                        "price": 319.01
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1752773400,
+                                        "timeLabel": "2025-07-17 17:30 UTC",
+                                        "price": 319.01
+                                }
+                        ]
+                },
+                {
+                        "id": "tsla-trade-2",
+                        "direction": "long",
+                        "entryTime": 1754055000,
+                        "entryTimeLabel": "2025-08-01 13:30 UTC",
+                        "entryPrice": 304.55,
+                        "stopPrice": 296.33,
+                        "targetPrice": 308.99,
+                        "exitTime": 1754332200,
+                        "exitTimeLabel": "2025-08-04 18:30 UTC",
+                        "exitPrice": 308.99,
+                        "exitReason": "Target hit",
+                        "mfe": 7.56,
+                        "mae": -6.73,
+                        "pnl": 4.44,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on TSLA",
+                                        "time": 1754055000,
+                                        "timeLabel": "2025-08-01 13:30 UTC",
+                                        "price": 304.55
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1754055000,
+                                        "timeLabel": "2025-08-01 13:30 UTC",
+                                        "price": 304.55
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1754332200,
+                                        "timeLabel": "2025-08-04 18:30 UTC",
+                                        "price": 308.99
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1754332200,
+                                        "timeLabel": "2025-08-04 18:30 UTC",
+                                        "price": 308.99
+                                }
+                        ]
+                },
+                {
+                        "id": "tsla-trade-3",
+                        "direction": "short",
+                        "entryTime": 1755613800,
+                        "entryTimeLabel": "2025-08-19 14:30 UTC",
+                        "entryPrice": 332.17,
+                        "stopPrice": 340.98,
+                        "targetPrice": 323.92,
+                        "exitTime": 1755718200,
+                        "exitTimeLabel": "2025-08-20 19:30 UTC",
+                        "exitPrice": 323.92,
+                        "exitReason": "Target hit",
+                        "mfe": 17.57,
+                        "mae": -7.11,
+                        "pnl": 8.25,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Short setup on TSLA",
+                                        "time": 1755613800,
+                                        "timeLabel": "2025-08-19 14:30 UTC",
+                                        "price": 332.17
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Short entry",
+                                        "time": 1755613800,
+                                        "timeLabel": "2025-08-19 14:30 UTC",
+                                        "price": 332.17
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1755718200,
+                                        "timeLabel": "2025-08-20 19:30 UTC",
+                                        "price": 323.92
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1755718200,
+                                        "timeLabel": "2025-08-20 19:30 UTC",
+                                        "price": 323.92
+                                }
+                        ]
+                },
+                {
+                        "id": "tsla-trade-4",
+                        "direction": "short",
+                        "entryTime": 1757086200,
+                        "entryTimeLabel": "2025-09-05 15:30 UTC",
+                        "entryPrice": 347.79,
+                        "stopPrice": 360.23,
+                        "targetPrice": 346.62,
+                        "exitTime": 1757424600,
+                        "exitTimeLabel": "2025-09-09 13:30 UTC",
+                        "exitPrice": 346.62,
+                        "exitReason": "Target hit",
+                        "mfe": 2.95,
+                        "mae": -10.65,
+                        "pnl": 1.17,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Short setup on TSLA",
+                                        "time": 1757086200,
+                                        "timeLabel": "2025-09-05 15:30 UTC",
+                                        "price": 347.79
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Short entry",
+                                        "time": 1757086200,
+                                        "timeLabel": "2025-09-05 15:30 UTC",
+                                        "price": 347.79
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1757424600,
+                                        "timeLabel": "2025-09-09 13:30 UTC",
+                                        "price": 346.62
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1757424600,
+                                        "timeLabel": "2025-09-09 13:30 UTC",
+                                        "price": 346.62
+                                }
+                        ]
+                }
+        ],
+        "SPY": [
+                {
+                        "id": "spy-trade-0",
+                        "direction": "long",
+                        "entryTime": 1750951800,
+                        "entryTimeLabel": "2025-06-26 15:30 UTC",
+                        "entryPrice": 610.88,
+                        "stopPrice": 606.78,
+                        "targetPrice": 616.7,
+                        "exitTime": 1751290200,
+                        "exitTimeLabel": "2025-06-30 13:30 UTC",
+                        "exitPrice": 616.7,
+                        "exitReason": "Target hit",
+                        "mfe": 6.61,
+                        "mae": -1.05,
+                        "pnl": 5.82,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on SPY",
+                                        "time": 1750951800,
+                                        "timeLabel": "2025-06-26 15:30 UTC",
+                                        "price": 610.88
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1750951800,
+                                        "timeLabel": "2025-06-26 15:30 UTC",
+                                        "price": 610.88
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1751290200,
+                                        "timeLabel": "2025-06-30 13:30 UTC",
+                                        "price": 616.7
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1751290200,
+                                        "timeLabel": "2025-06-30 13:30 UTC",
+                                        "price": 616.7
+                                }
+                        ]
+                },
+                {
+                        "id": "spy-trade-1",
+                        "direction": "long",
+                        "entryTime": 1752607800,
+                        "entryTimeLabel": "2025-07-15 19:30 UTC",
+                        "entryPrice": 622.11,
+                        "stopPrice": 614.96,
+                        "targetPrice": 627.83,
+                        "exitTime": 1752773400,
+                        "exitTimeLabel": "2025-07-17 17:30 UTC",
+                        "exitPrice": 627.83,
+                        "exitReason": "Target hit",
+                        "mfe": 5.77,
+                        "mae": -4.06,
+                        "pnl": 5.72,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on SPY",
+                                        "time": 1752607800,
+                                        "timeLabel": "2025-07-15 19:30 UTC",
+                                        "price": 622.11
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1752607800,
+                                        "timeLabel": "2025-07-15 19:30 UTC",
+                                        "price": 622.11
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1752773400,
+                                        "timeLabel": "2025-07-17 17:30 UTC",
+                                        "price": 627.83
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1752773400,
+                                        "timeLabel": "2025-07-17 17:30 UTC",
+                                        "price": 627.83
+                                }
+                        ]
+                },
+                {
+                        "id": "spy-trade-2",
+                        "direction": "long",
+                        "entryTime": 1754055000,
+                        "entryTimeLabel": "2025-08-01 13:30 UTC",
+                        "entryPrice": 623.37,
+                        "stopPrice": 616.19,
+                        "targetPrice": 630.26,
+                        "exitTime": 1754332200,
+                        "exitTimeLabel": "2025-08-04 18:30 UTC",
+                        "exitPrice": 630.26,
+                        "exitReason": "Target hit",
+                        "mfe": 7.38,
+                        "mae": -4.08,
+                        "pnl": 6.89,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on SPY",
+                                        "time": 1754055000,
+                                        "timeLabel": "2025-08-01 13:30 UTC",
+                                        "price": 623.37
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1754055000,
+                                        "timeLabel": "2025-08-01 13:30 UTC",
+                                        "price": 623.37
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1754332200,
+                                        "timeLabel": "2025-08-04 18:30 UTC",
+                                        "price": 630.26
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1754332200,
+                                        "timeLabel": "2025-08-04 18:30 UTC",
+                                        "price": 630.26
+                                }
+                        ]
+                },
+                {
+                        "id": "spy-trade-3",
+                        "direction": "short",
+                        "entryTime": 1755613800,
+                        "entryTimeLabel": "2025-08-19 14:30 UTC",
+                        "entryPrice": 641.61,
+                        "stopPrice": 646.76,
+                        "targetPrice": 638.04,
+                        "exitTime": 1755718200,
+                        "exitTimeLabel": "2025-08-20 19:30 UTC",
+                        "exitPrice": 638.04,
+                        "exitReason": "Target hit",
+                        "mfe": 8.66,
+                        "mae": -1.93,
+                        "pnl": 3.57,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Short setup on SPY",
+                                        "time": 1755613800,
+                                        "timeLabel": "2025-08-19 14:30 UTC",
+                                        "price": 641.61
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Short entry",
+                                        "time": 1755613800,
+                                        "timeLabel": "2025-08-19 14:30 UTC",
+                                        "price": 641.61
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1755718200,
+                                        "timeLabel": "2025-08-20 19:30 UTC",
+                                        "price": 638.04
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1755718200,
+                                        "timeLabel": "2025-08-20 19:30 UTC",
+                                        "price": 638.04
+                                }
+                        ]
+                },
+                {
+                        "id": "spy-trade-4",
+                        "direction": "long",
+                        "entryTime": 1757086200,
+                        "entryTimeLabel": "2025-09-05 15:30 UTC",
+                        "entryPrice": 645.73,
+                        "stopPrice": 641.39,
+                        "targetPrice": 648.75,
+                        "exitTime": 1757424600,
+                        "exitTimeLabel": "2025-09-09 13:30 UTC",
+                        "exitPrice": 648.75,
+                        "exitReason": "Target hit",
+                        "mfe": 4.11,
+                        "mae": -1.12,
+                        "pnl": 3.02,
+                        "events": [
+                                {
+                                        "type": "signal",
+                                        "label": "Long setup on SPY",
+                                        "time": 1757086200,
+                                        "timeLabel": "2025-09-05 15:30 UTC",
+                                        "price": 645.73
+                                },
+                                {
+                                        "type": "entry_fill",
+                                        "label": "Long entry",
+                                        "time": 1757086200,
+                                        "timeLabel": "2025-09-05 15:30 UTC",
+                                        "price": 645.73
+                                },
+                                {
+                                        "type": "target_hit",
+                                        "label": "Target",
+                                        "time": 1757424600,
+                                        "timeLabel": "2025-09-09 13:30 UTC",
+                                        "price": 648.75
+                                },
+                                {
+                                        "type": "exit_fill",
+                                        "label": "Exit",
+                                        "time": 1757424600,
+                                        "timeLabel": "2025-09-09 13:30 UTC",
+                                        "price": 648.75
+                                }
+                        ]
+                }
+        ]
+};
+
+      function demoTradesFor(payloadOrSymbol) {
+        const raw = typeof payloadOrSymbol === 'string'
+          ? payloadOrSymbol
+          : payloadOrSymbol?.symbol;
+        const symbol = String(raw || 'AAPL').toUpperCase();
+        return DEMO_TRADES_BY_SYMBOL[symbol] || [];
+      }
+      function executionMarker({ id, type, side, time, price, trade, shape = 'arrow' }) {
+        const isBuy = side === 'buy';
+        const lwcShape = shape === 'diamond' ? 'diamond'
+          : isBuy ? 'arrowUp'
+          : 'arrowDown';
+        return {
+          id,
+          type,
+          side,
+          time,
+          price,
+          color: isBuy ? '#0f8f61' : '#c94a35',
+          shape: lwcShape,
+          position: 'inBar',
+          text: '',
+          trade,
+        };
+      }
+
+      const CONCEPT_GLYPHS = {
+        T1: (isBuy) => {
+          const c = isBuy ? '#0f8f61' : '#c94a35';
+          const points = isBuy ? '9,1 17,16 1,16' : '1,1 17,1 9,16';
+          return `<polygon points="${points}" fill="${c}" stroke="#0a0a0a" stroke-width="1"/>`;
+        },
+        T7: (isBuy) => {
+          const c = isBuy ? '#0f8f61' : '#c94a35';
+          const points = isBuy ? '9,1 17,16 1,16' : '1,1 17,1 9,16';
+          return `<polygon points="${points}" fill="none" stroke="${c}" stroke-width="3" stroke-linejoin="round"/><polygon points="${points}" fill="${c}" stroke="#0a0a0a" stroke-width="1"/>`;
+        },
+        D1: (isBuy) => {
+          const c = isBuy ? '#0f8f61' : '#c94a35';
+          return `<polygon points="9,1 17,9 9,17 1,9" fill="${c}" stroke="#0a0a0a" stroke-width="1"/>`;
+        },
+        D6: (isBuy) => {
+          const c = isBuy ? '#0f8f61' : '#c94a35';
+          return `<polygon points="9,1 17,9 9,17 1,9" fill="none" stroke="${c}" stroke-width="3" stroke-linejoin="round"/><polygon points="9,1 17,9 9,17 1,9" fill="${c}" stroke="#0a0a0a" stroke-width="1"/>`;
+        },
+      };
+
+      function buildMarkers(trades, density, selectedId, shape) {
+        const markers = [];
+        for (const trade of trades) {
+          const show = density === 'all' || (density === 'entries')
+            || (density === 'selected' && trade.id === selectedId);
+          if (!show) continue;
+
+          const entrySide = trade.direction === 'long' ? 'buy' : 'sell';
+          const exitSide = trade.direction === 'long' ? 'sell' : 'buy';
+
+          markers.push(executionMarker({
+            id: trade.id,
+            type: 'entry',
+            side: entrySide,
+            time: trade.entryTime,
+            price: trade.entryPrice,
+            trade,
+            shape,
+          }));
+
+          if (density !== 'entries') {
+            markers.push(executionMarker({
+              id: trade.id,
+              type: 'exit',
+              side: exitSide,
+              time: trade.exitTime,
+              price: trade.exitPrice,
+              trade,
+              shape,
+            }));
+          }
+        }
+        return markers;
+      }
+
+      function filterTrades(trades, density, selectedTradeId) {
+        if (!trades.length) return [];
+        if (density === 'all') return trades;
+        if (density === 'entries') return trades.filter(t => t);
+        if (density === 'selected') return trades.filter(t => t.id === selectedTradeId);
+        return trades;
+      }
+
+      function renderSeriesMarkers(markers) {
+        const markerData = markers.map(({ time, color, shape, position, text }) => ({ time, color, shape, position, text }));
+        if (markerPrimitive && typeof markerPrimitive.setMarkers === 'function') {
+          markerPrimitive.setMarkers(markerData);
+          return;
+        }
+        if (LightweightCharts.createSeriesMarkers) {
+          markerPrimitive = LightweightCharts.createSeriesMarkers(candleSeries, markerData);
+          return;
+        }
+        if (typeof candleSeries.setMarkers === 'function') {
+          candleSeries.setMarkers(markerData);
+        }
+      }
+
+      function renderTradePriceLines(trades) {
+        priceLines.forEach((line) => {
+          try { candleSeries.removePriceLine(line); } catch (_) {}
+        });
+        priceLines = [];
+        if (!showTrades || typeof candleSeries.createPriceLine !== 'function') return;
+        trades.forEach((trade) => {
+          priceLines.push(candleSeries.createPriceLine({
+            price: trade.stopPrice,
+            color: '#c94a35',
+            lineWidth: selectedTradeId === trade.id ? 2 : 1,
+            lineStyle: LightweightCharts.LineStyle.Dashed,
+            axisLabelVisible: selectedTradeId === trade.id,
+            title: `${trade.id} stop`,
+          }));
+          priceLines.push(candleSeries.createPriceLine({
+            price: trade.targetPrice,
+            color: '#0f8f61',
+            lineWidth: selectedTradeId === trade.id ? 2 : 1,
+            lineStyle: LightweightCharts.LineStyle.Dashed,
+            axisLabelVisible: selectedTradeId === trade.id,
+            title: `${trade.id} target`,
+          }));
+        });
+      }
+
+      function updateBadge(payload) {
+        const n = payload?.bars?.length ?? 0;
+        const range = payload?.range ?? '1y';
+        const interval = payload?.interval ?? '1d';
+        badgeEl.querySelector('span:last-child').textContent =
+          `Yahoo Finance · ${interval} · ${n.toLocaleString()} bars · ${range}`;
+      }
+
+      // ── DAS execution overlay (extracted to das-overlay.js) ────────────────
+      // The factory (window.createDasOverlay) owns the marker DOM, click
+      // handling, and chart-event subscriptions. We just keep a reference so
+      // scheduleOverlayUpdate() can poke it, and rebuild on chart reset.
+      const chartHost = document.getElementById('chart-host');
+      let mainOverlay = null;       // createDasOverlay instance
+      let overlayUpdateScheduled = false;
+      let overlayTrackingRaf = 0;
+      let overlayPointerDown = false;
+      let overlayTrackingFrames = 0;
+
+      function scheduleOverlayUpdate() {
+        if (overlayUpdateScheduled) return;
+        overlayUpdateScheduled = true;
+        requestAnimationFrame(() => {
+          overlayUpdateScheduled = false;
+          renderCustomMarkers();
+          renderDrawings();
+        });
+      }
+
+      function startOverlayTracking(frames = 45) {
+        // Custom SVG markers live outside Lightweight Charts. While the user drags
+        // the price axis, LWC changes price→pixel coordinates every frame but does
+        // not emit a resize/time-range event. Track briefly during/after pointer
+        // and wheel gestures so markers stay glued to candle coordinates.
+        overlayTrackingFrames = Math.max(overlayTrackingFrames, frames);
+        if (overlayTrackingRaf) return;
+        const tick = () => {
+          scheduleOverlayUpdate();
+          if (overlayPointerDown || overlayTrackingFrames > 0) {
+            overlayTrackingFrames = Math.max(0, overlayTrackingFrames - 1);
+            overlayTrackingRaf = requestAnimationFrame(tick);
+          } else {
+            overlayTrackingRaf = 0;
+          }
+        };
+        overlayTrackingRaf = requestAnimationFrame(tick);
+      }
+
+      function isConceptShape(shape) {
+        return shape === 'T1' || shape === 'T7' || shape === 'D1' || shape === 'D6';
+      }
+
+      // Build the trade list the factory should render right now. Mirrors the
+      // density logic that previously lived inside renderCustomMarkers():
+      //   - density='selected' → only the selected trade
+      //   - density='all' / 'entries' → all trades
+      //   - showTrades off or shape not concept → empty (factory clears its DOM)
+      function tradesForOverlay() {
+        if (!showTrades || !isConceptShape(markerShape)) return [];
+        if (density === 'none') return [];
+        if (!lastPayload) return [];
+        const available = demoTradesFor(lastPayload);
+        if (density === 'selected') {
+          return available.filter(t => t.id === selectedTradeId);
+        }
+        return available;
+      }
+
+      // Drive the factory on every redraw. We push the current trades, shape,
+      // and selection into it; the factory handles its own DOM.
+      function renderCustomMarkers() {
+        if (!mainOverlay || !chart || !lastPayload) return;
+        mainOverlay.setSelectedId(selectedTradeId);
+        mainOverlay.setTrades(tradesForOverlay());
+        mainOverlay.refresh();
+      }
+
+      function initChart() {
+        // Tear down any previous overlay before swapping the chart instance
+        // so we don't leak DOM nodes and event subscriptions.
+        if (mainOverlay) {
+          try { mainOverlay.destroy(); } catch (_) {}
+          mainOverlay = null;
+        }
+        chartEl.replaceChildren();
+        markerPrimitive = null;
+        priceLines = [];
+        chart = LightweightCharts.createChart(chartEl, {
+          autoSize: true,
+          layout: {
+            background: { type: 'solid', color: '#1a1a1a' },
+            textColor: '#c8c0b0',
+            fontFamily: 'Inter, system-ui, sans-serif',
+          },
+          grid: { vertLines: { color: '#2a2a2a' }, horzLines: { color: '#2a2a2a' } },
+          rightPriceScale: { borderColor: '#333333' },
+          timeScale: { borderColor: '#333333', timeVisible: true },
+          crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        });
+
+        if (chartType === 'candles') {
+          candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
+            upColor: '#0f8f61', downColor: '#c94a35', borderVisible: false,
+            wickUpColor: '#0f8f61', wickDownColor: '#c94a35', priceScaleId: 'right',
+          });
+        } else {
+          candleSeries = chart.addSeries(LightweightCharts.LineSeries, {
+            color: '#ff682c', lineWidth: 2, priceScaleId: 'right',
+          });
+        }
+
+        volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
+          priceFormat: { type: 'volume' }, priceScaleId: 'volume',
+          color: '#3a3a3a',
+        });
+        // Volume layout: 'separate pane' uses a much larger bottom strip,
+        // overlay uses a compact ~18% strip at the very bottom.
+        const volMargins = volumeSeparate
+          ? { top: 0.55, bottom: 0 }
+          : { top: 0.82, bottom: 0 };
+        chart.priceScale('volume').applyOptions({ scaleMargins: volMargins });
+        // Note: do NOT call fitContent() here — draw() controls the final
+        // visible range (either fitContent or setVisibleLogicalRange). Calling
+        // fitContent eagerly would briefly extend the range to the left edge,
+        // which fires subscribeVisibleLogicalRangeChange and triggers lazy
+        // loading before our rAF-deferred setVisibleLogicalRange can run.
+        window.demoChart = chart;
+        window.demoSeries = candleSeries;
+
+        chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+          maybeLoadOlderBars();
+        });
+
+        // Build the DAS execution overlay. Same factory orb.html uses —
+        // visuals (T1 triangles, sizes, colors) match the original inline
+        // implementation 1:1. Clicking a marker selects the trade and
+        // re-renders the panel via redrawPreservingZoom (no popup, by
+        // design — index.html's existing UX just highlights the side panel).
+        mainOverlay = createDasOverlay({
+          containerEl: chartHost,
+          chart,
+          candleSeries,
+          shape: markerShape,
+          getSizePct: () => {
+            const el = document.querySelector('#marker-size');
+            const v = el ? parseFloat(el.value) : NaN;
+            return Number.isFinite(v) ? v : 6;
+          },
+          onMarkerClick: (_execution, _trade) => {
+            selectedTradeId = _execution.id;
+            redrawPreservingZoom();
+          },
+        });
+      }
+
+      function smaCalc(bars, period) {
+        let sum = 0;
+        return bars.map((bar, idx) => {
+          sum += bar.close;
+          if (idx >= period) sum -= bars[idx - period].close;
+          return idx >= period - 1 ? { time: bar.time, value: +(sum / period).toFixed(4) } : null;
+        }).filter(Boolean);
+      }
+
+      function emaCalc(bars, period) {
+        const k = 2 / (period + 1);
+        let prev;
+        return bars.map((bar, idx) => {
+          prev = idx === 0 ? bar.close : bar.close * k + prev * (1 - k);
+          return idx >= period - 1 ? { time: bar.time, value: +prev.toFixed(4) } : null;
+        }).filter(Boolean);
+      }
+
+      function parsePeriods(value) {
+        return [...new Set(String(value || '')
+          .split(/[^0-9]+/)
+          .map(v => Number(v))
+          .filter(v => Number.isInteger(v) && v > 0 && v <= 500))];
+      }
+
+      function vwapCalc(bars) {
+        let cumPV = 0;
+        let cumVolume = 0;
+        return bars.map((bar) => {
+          const volume = Number(bar.volume) || 0;
+          const typical = (bar.high + bar.low + bar.close) / 3;
+          cumPV += typical * volume;
+          cumVolume += volume;
+          return cumVolume > 0 ? { time: bar.time, value: +(cumPV / cumVolume).toFixed(4) } : null;
+        }).filter(Boolean);
+      }
+
+      // Bollinger Bands: SMA ± (mult * stddev). Returns {upper, middle, lower}.
+      function bbCalc(bars, period, mult) {
+        const upper = [], middle = [], lower = [];
+        if (period < 2) return { upper, middle, lower };
+        let sum = 0;
+        for (let i = 0; i < bars.length; i++) {
+          sum += bars[i].close;
+          if (i >= period) sum -= bars[i - period].close;
+          if (i >= period - 1) {
+            const mean = sum / period;
+            let sqSum = 0;
+            for (let j = i - period + 1; j <= i; j++) {
+              const d = bars[j].close - mean;
+              sqSum += d * d;
+            }
+            const std = Math.sqrt(sqSum / period);
+            const time = bars[i].time;
+            upper.push({ time, value: +(mean + mult * std).toFixed(4) });
+            middle.push({ time, value: +mean.toFixed(4) });
+            lower.push({ time, value: +(mean - mult * std).toFixed(4) });
+          }
+        }
+        return { upper, middle, lower };
+      }
+
+      // Wilder's RSI. Returns array of {time, value} starting at bar `period`.
+      function rsiCalc(bars, period) {
+        const out = [];
+        if (bars.length <= period) return out;
+        let avgGain = 0;
+        let avgLoss = 0;
+        for (let i = 1; i <= period; i++) {
+          const change = bars[i].close - bars[i - 1].close;
+          const gain = change > 0 ? change : 0;
+          const loss = change < 0 ? -change : 0;
+          avgGain += gain;
+          avgLoss += loss;
+        }
+        avgGain /= period;
+        avgLoss /= period;
+        const rs0 = avgLoss === 0 ? 100 : avgGain / avgLoss;
+        out.push({ time: bars[period].time, value: +(100 - 100 / (1 + rs0)).toFixed(4) });
+        for (let i = period + 1; i < bars.length; i++) {
+          const change = bars[i].close - bars[i - 1].close;
+          const gain = change > 0 ? change : 0;
+          const loss = change < 0 ? -change : 0;
+          avgGain = (avgGain * (period - 1) + gain) / period;
+          avgLoss = (avgLoss * (period - 1) + loss) / period;
+          const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+          out.push({ time: bars[i].time, value: +(100 - 100 / (1 + rs)).toFixed(4) });
+        }
+        return out;
+      }
+
+      // Helpers for prev-week / prev-month keying (UTC-based so that the
+      // "previous week/month" boundary is consistent across local TZs).
+      function _barToDate(bar) {
+        return typeof bar.time === 'number'
+          ? new Date(bar.time * 1000)
+          : new Date(bar.time + 'T00:00:00Z');
+      }
+      function _dayKey(bar) { return _barToDate(bar).toISOString().slice(0, 10); }
+      function _monthKey(bar) {
+        const d = _barToDate(bar);
+        return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+      }
+      function _isoWeek(d) {
+        // ISO 8601 week number for a UTC date `d`.
+        const dt = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        const dayNum = (dt.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
+        dt.setUTCDate(dt.getUTCDate() - dayNum + 3);
+        const firstThu = new Date(Date.UTC(dt.getUTCFullYear(), 0, 4));
+        const firstThuDayNum = (firstThu.getUTCDay() + 6) % 7;
+        firstThu.setUTCDate(firstThu.getUTCDate() - firstThuDayNum + 3);
+        return 1 + Math.round((dt - firstThu) / (7 * 24 * 3600 * 1000));
+      }
+      function _weekKey(bar) {
+        const d = _barToDate(bar);
+        return d.getUTCFullYear() + '-W' + String(_isoWeek(d)).padStart(2, '0');
+      }
+      function _groupByKey(bars, keyFn, buildSeed) {
+        const order = [];
+        const map = new Map();
+        for (const bar of bars) {
+          const k = keyFn(bar);
+          let entry = map.get(k);
+          if (!entry) {
+            entry = buildSeed();
+            map.set(k, entry);
+            order.push(k);
+          }
+          if (bar.high > entry.high) entry.high = bar.high;
+          if (bar.low < entry.low) entry.low = bar.low;
+          entry.close = bar.close;
+          entry._lastTime = bar.time;
+        }
+        return { order, map };
+      }
+      function _emitPrevHLC(bars, keyFn) {
+        const { order, map } = _groupByKey(bars, keyFn, () => ({ high: -Infinity, low: Infinity, close: null }));
+        const idxByKey = new Map(order.map((k, i) => [k, i]));
+        const high = [], low = [], close = [];
+        for (const bar of bars) {
+          const k = keyFn(bar);
+          const i = idxByKey.get(k);
+          if (i > 0) {
+            const prev = map.get(order[i - 1]);
+            if (prev && Number.isFinite(prev.high) && Number.isFinite(prev.low) && prev.close != null) {
+              high.push({ time: bar.time, value: +prev.high.toFixed(4) });
+              low.push({ time: bar.time, value: +prev.low.toFixed(4) });
+              close.push({ time: bar.time, value: +prev.close.toFixed(4) });
+            }
+          }
+        }
+        return { high, low, close };
+      }
+      function prevDayHLC(bars) { return _emitPrevHLC(bars, _dayKey); }
+      function prevWeekHLC(bars) { return _emitPrevHLC(bars, _weekKey); }
+      function prevMonthHLC(bars) { return _emitPrevHLC(bars, _monthKey); }
+
+      function selectedOverlays() {
+        const overlays = [];
+        if (smaEnabled.checked) {
+          parsePeriods(smaPeriodsInput.value).forEach(period => overlays.push({ kind: 'sma', period }));
+        }
+        if (emaEnabled.checked) {
+          parsePeriods(emaPeriodsInput.value).forEach(period => overlays.push({ kind: 'ema', period }));
+        }
+        if (vwapEnabled.checked) {
+          overlays.push({ kind: 'vwap', period: null });
+        }
+        if (bbEnabled.checked) {
+          const p = Math.max(2, parseInt(bbPeriodInput.value, 10) || 20);
+          const m = parseFloat(bbMultInput.value) || 2;
+          overlays.push({ kind: 'bb_upper', period: p, mult: m });
+          overlays.push({ kind: 'bb_middle', period: p, mult: m });
+          overlays.push({ kind: 'bb_lower', period: p, mult: m });
+        }
+        if (rsiEnabled.checked) {
+          const p = Math.max(2, parseInt(rsiPeriodInput.value, 10) || 14);
+          overlays.push({ kind: 'rsi', period: p });
+        }
+        if (pdhlcEnabled.checked) {
+          overlays.push({ kind: 'pd_h', period: null });
+          overlays.push({ kind: 'pd_l', period: null });
+          overlays.push({ kind: 'pd_c', period: null });
+        }
+        if (pwhlcEnabled.checked) {
+          overlays.push({ kind: 'pw_h', period: null });
+          overlays.push({ kind: 'pw_l', period: null });
+          overlays.push({ kind: 'pw_c', period: null });
+        }
+        if (pmhlcEnabled.checked) {
+          overlays.push({ kind: 'pm_h', period: null });
+          overlays.push({ kind: 'pm_l', period: null });
+          overlays.push({ kind: 'pm_c', period: null });
+        }
+        return overlays;
+      }
+
+      function draw(payload, options = {}) {
+        const { fit = true, visibleRange = null } = options;
+        lastPayload = payload;
+        initChart();
+        const bars = payload.bars;
+
+        if (chartType === 'candles') {
+          candleSeries.setData(bars.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
+        } else {
+          candleSeries.setData(bars.map(({ time, close }) => ({ time, value: close })));
+        }
+
+        volumeSeries.setData(bars.map((bar) => ({
+          time: bar.time,
+          value: bar.volume,
+          color: bar.close >= bar.open ? 'rgba(15,143,97,.35)' : 'rgba(201,74,53,.35)',
+        })));
+
+        lineSeries = [];
+        selectedOverlays().forEach((overlay, idx) => {
+          const { kind, period, mult } = overlay;
+          let title, color, lineWidth = 2, data;
+          if (kind === 'vwap') {
+            title = 'VWAP'; color = palette[idx % palette.length]; lineWidth = 3;
+            data = vwapCalc(bars);
+          } else if (kind === 'sma' || kind === 'ema') {
+            title = `${kind.toUpperCase()} ${period}`;
+            color = palette[idx % palette.length];
+            data = kind === 'sma' ? smaCalc(bars, period) : emaCalc(bars, period);
+          } else if (kind === 'bb_upper' || kind === 'bb_middle' || kind === 'bb_lower') {
+            const bb = bbCalc(bars, period, mult);
+            title = kind === 'bb_middle' ? `BB ${period} m` : `BB ${period} ${kind === 'bb_upper' ? '↑' : '↓'}`;
+            color = kind === 'bb_middle' ? '#ff9a3c' : '#7aa7ff';
+            data = kind === 'bb_upper' ? bb.upper : kind === 'bb_middle' ? bb.middle : bb.lower;
+          } else if (kind === 'rsi') {
+            title = `RSI ${period}`;
+            color = '#b58cff';
+            data = rsiCalc(bars, period);
+          } else if (kind === 'pd_h' || kind === 'pd_l' || kind === 'pd_c') {
+            const pd = prevDayHLC(bars);
+            title = `PrevD ${kind.slice(3).toUpperCase()}`;
+            color = kind === 'pd_h' ? 'rgba(15,143,97,.75)' : kind === 'pd_l' ? 'rgba(201,74,53,.75)' : '#888';
+            data = kind === 'pd_h' ? pd.high : kind === 'pd_l' ? pd.low : pd.close;
+          } else if (kind === 'pw_h' || kind === 'pw_l' || kind === 'pw_c') {
+            const pw = prevWeekHLC(bars);
+            title = `PrevW ${kind.slice(3).toUpperCase()}`;
+            color = kind === 'pw_h' ? 'rgba(15,143,97,.55)' : kind === 'pw_l' ? 'rgba(201,74,53,.55)' : '#666';
+            data = kind === 'pw_h' ? pw.high : kind === 'pw_l' ? pw.low : pw.close;
+          } else if (kind === 'pm_h' || kind === 'pm_l' || kind === 'pm_c') {
+            const pm = prevMonthHLC(bars);
+            title = `PrevM ${kind.slice(3).toUpperCase()}`;
+            color = kind === 'pm_h' ? 'rgba(15,143,97,.4)' : kind === 'pm_l' ? 'rgba(201,74,53,.4)' : '#444';
+            data = kind === 'pm_h' ? pm.high : kind === 'pm_l' ? pm.low : pm.close;
+          } else {
+            return;
+          }
+
+          // RSI is an oscillator — render it on its own (overlay, scaleMargins
+          // constrained) price scale so it doesn't fight with the price pane.
+          // Prev-HLC lines track price on the same scale.
+          const isOscillator = kind === 'rsi';
+          const isPriceOverlay = !(isOscillator);
+          const seriesOpts = {
+            title, color, lineWidth, priceLineVisible: false,
+          };
+          if (isOscillator) {
+            seriesOpts.priceScaleId = 'rsi';
+            seriesOpts.priceLineVisible = true;
+            seriesOpts.priceLineStyle = 2; // dashed
+          }
+          const s = chart.addSeries(LightweightCharts.LineSeries, seriesOpts);
+          if (isOscillator) {
+            // Oscillator scale: 0–100, pinned to a thin bottom strip.
+            chart.priceScale('rsi').applyOptions({
+              scaleMargins: { top: 0.88, bottom: 0.04 },
+              autoScale: false,
+              mode: 0, // 0 = normal (use min/max from data), good enough for 0–100 RSI
+            });
+          } else if (isPriceOverlay) {
+            // Ensure overlays like BB / prevHLC snap to the right (price) scale
+            // even if a previous overlay set up its own.
+            s.priceScale().applyOptions({ autoScale: true });
+          }
+          s.setData(data);
+          lineSeries.push(s);
+        });
+
+        // Trades overlay
+        const availableTrades = demoTradesFor(payload);
+        if (!availableTrades.some(t => t.id === selectedTradeId)) {
+          selectedTradeId = availableTrades[0]?.id ?? null;
+        }
+        const useCustom = isConceptShape(markerShape);
+        const markers = useCustom ? [] : buildMarkers(availableTrades, showTrades ? density : 'none', selectedTradeId, markerShape);
+        renderSeriesMarkers(markers);
+        renderCustomMarkers();
+
+        // Always render panel (candle fallback or trade audit)
+        renderPanel(payload);
+
+        if (visibleRange) {
+          // Defer to the next frame so the freshly-created chart has time to
+          // lay out and accept the logical range without rounding to its
+          // default fit-content extent (Fix 2).
+          requestAnimationFrame(() => {
+            chart.timeScale().setVisibleLogicalRange(visibleRange);
+          });
+        } else if (fit) {
+          lazySuppressUntil = Date.now() + 1200;
+          chart.timeScale().fitContent();
+        }
+        renderStats(payload);
+        updateBadge(payload);
+        chart.timeScale().subscribeVisibleTimeRangeChange(scheduleOverlayUpdate);
+        chart.priceScale('right').subscribeSizeChange?.(scheduleOverlayUpdate);
+
+        // ── Marker click → select trade ───────────────────────────────────────
+        chart.subscribeClick((param) => {
+          if (!param.point || !param.seriesData) return;
+          const markerData = param.seriesData.get(candleSeries);
+          if (markerData && markerData.text) {
+            const m = markers.find(mk => mk.time === markerData.time?.slice(0,10) && mk.shape === markerData.shape && mk.color === markerData.color);
+            if (m) {
+              selectedTradeId = m.id;
+              const activeTrades = demoTradesFor(lastPayload);
+              const markers2 = buildMarkers(activeTrades, showTrades ? density : 'none', selectedTradeId, markerShape);
+              renderSeriesMarkers(markers2);
+              if (lastPayload) renderPanel(lastPayload);
+              return;
+            }
+          }
+          // Click on chart background → deselect
+          selectedTradeId = null;
+          const activeTrades = demoTradesFor(lastPayload);
+          const markers2 = buildMarkers(activeTrades, showTrades ? density : 'none', null, markerShape);
+          renderSeriesMarkers(markers2);
+          if (lastPayload) renderPanel(lastPayload);
+        });
+      }
+
+      // Re-render the current payload WITHOUT fitting, preserving whatever
+      // logical range the user is currently zoomed/scrolled to. Use this for
+      // any UI change (trade selection, indicator toggle, density, etc.) that
+      // should not reset zoom. Fresh symbol/range/interval loads should still
+      // call draw(payload) with default fit:true.
+      function redrawPreservingZoom() {
+        if (!lastPayload) return;
+        // Suppress lazy loading briefly. Without this, the freshly-created
+        // chart's setData() briefly exposes the full data range, the
+        // subscribeVisibleLogicalRangeChange listener fires, and
+        // maybeLoadOlderBars() kicks in BEFORE our rAF-deferred
+        // setVisibleLogicalRange restores the user's window — shifting the
+        // visible range by however many bars get appended.
+        lazySuppressUntil = Date.now() + 1200;
+        const currentRange = chart?.timeScale()?.getVisibleLogicalRange?.();
+        draw(lastPayload, { fit: false, visibleRange: currentRange || null });
+      }
+
+      function renderPanel(payload) {
+        const panel = document.getElementById('panel');
+        const bars = payload?.bars ?? [];
+        const n = bars.length;
+        const availableTrades = demoTradesFor(payload);
+        const tradeListHtml = `
+          <div class="p-section">
+            <div class="p-label">Simulated Trade Tape · ${payload?.symbol ?? '—'}</div>
+            <div class="trade-list">
+              ${availableTrades.length ? availableTrades.map((t) => `
+                <button class="trade-card ${selectedTradeId === t.id ? 'active' : ''}" data-trade-id="${t.id}">
+                  <div class="trade-card-top">
+                    <span>${t.direction === 'long' ? '▲ Long' : '▼ Short'} · ${t.entryTimeLabel ?? timeLabel(t.entryTime)}</span>
+                    <span class="${t.pnl >= 0 ? 'p-win' : 'p-loss'}">${t.pnl >= 0 ? '+' : ''}$${Math.abs(t.pnl).toFixed(2)}</span>
+                  </div>
+                  <div class="trade-card-sub">${t.entryPrice.toFixed(2)} → ${t.exitPrice.toFixed(2)} · ${t.exitReason}</div>
+                </button>`).join('') : '<div class="p-hint">No demo trades for this ticker yet. Try AAPL, MSFT, NVDA, TSLA, or SPY.</div>'}
+            </div>
+          </div>`;
+
+        if (!selectedTradeId) {
+          // Default: selected candle or last bar
+          const last = bars[n - 1];
+          const prev = bars[n - 2];
+          if (!last) { panel.innerHTML = '<div class="p-hint">Loading…</div>'; return; }
+          const chg = prev ? ((last.close - prev.close) / prev.close * 100) : 0;
+          const chgStr = `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%`;
+          const smaMap = {};
+          selectedOverlays().forEach(({ kind, period }) => {
+            const vals = kind === 'sma' ? smaCalc(bars, period) : emaCalc(bars, period);
+            const v = vals[vals.length - 1];
+            if (v) smaMap[`${kind.toUpperCase()} ${period}`] = v.value;
+          });
+          const indRows = Object.entries(smaMap).map(([k, v]) =>
+            `<div class="p-row"><span>${k}</span><span class="p-val">${v.toFixed(2)}</span></div>`).join('');
+
+          panel.innerHTML = `
+            <div class="p-section">
+              <div class="p-label">Selected Bar</div>
+              <div class="p-row"><span>Date</span><span class="p-val">${last.time}</span></div>
+              <div class="p-row"><span>Open</span><span class="p-val">${last.open.toFixed(2)}</span></div>
+              <div class="p-row"><span>High</span><span class="p-val">${last.high.toFixed(2)}</span></div>
+              <div class="p-row"><span>Low</span><span class="p-val">${last.low.toFixed(2)}</span></div>
+              <div class="p-row"><span>Close</span><span class="p-val">${last.close.toFixed(2)}</span></div>
+              <div class="p-row"><span>Change</span><span class="p-val ${chg >= 0 ? 'p-change-pos' : 'p-change-neg'}">${chgStr}</span></div>
+              <div class="p-row"><span>Volume</span><span class="p-val">${(last.volume / 1e6).toFixed(2)}M</span></div>
+            </div>
+            ${indRows ? `<div class="p-section"><div class="p-label">Indicators</div>${indRows}</div>` : ''}
+            ${tradeListHtml}
+            <div class="p-provider">Yahoo Finance · ${payload.interval ?? '1d'} · ${n.toLocaleString()} bars</div>
+          `;
+          return;
+        }
+
+        // Trade audit view
+        const trade = availableTrades.find(t => t.id === selectedTradeId);
+        if (!trade) return;
+
+        const dirBadge = trade.direction === 'long'
+          ? '<span class="p-badge long">▲ Long</span>'
+          : '<span class="p-badge short">▼ Short</span>';
+        const resultBadge = trade.pnl >= 0
+          ? '<span class="p-badge win">Win</span>'
+          : '<span class="p-badge loss">Loss</span>';
+        const pnlClass = trade.pnl >= 0 ? 'p-win' : 'p-loss';
+        const pnlStr = `${trade.pnl >= 0 ? '+' : ''}$${Math.abs(trade.pnl).toFixed(2)}`;
+
+        const eventDots = {
+          signal: '#888',
+          entry_fill: trade.direction === 'long' ? '#0f8f61' : '#c94a35',
+          stop_hit: '#c94a35',
+          target_hit: '#0f8f61',
+          exit_fill: '#888',
+          note: '#888',
+        };
+        const eventsHtml = trade.events.map(ev =>
+          `<div class="p-event">
+            <div class="p-event-dot" style="background:${eventDots[ev.type] ?? '#888'}"></div>
+            <div class="p-event-info">
+              <div class="p-event-label">${ev.label}</div>
+              <div class="p-event-detail">${ev.timeLabel ?? timeLabel(ev.time)} · $${ev.price?.toFixed(2) ?? '—'}</div>
+            </div>
+          </div>`).join('');
+
+        panel.innerHTML = `
+          <div class="p-section">
+            <div class="p-trade-header">
+              ${dirBadge}
+              <span class="p-trade-sym">${payload.symbol}</span>
+              <span class="p-trade-pnl ${pnlClass}">${pnlStr}</span>
+              ${resultBadge}
+            </div>
+          </div>
+          <hr class="p-divider" />
+          <div class="p-section">
+            <div class="p-label">Entry</div>
+            <div class="p-row"><span>Price</span><span class="p-val">$${trade.entryPrice.toFixed(2)}</span></div>
+            <div class="p-row"><span>Time</span><span class="p-val">${trade.entryTimeLabel ?? timeLabel(trade.entryTime)}</span></div>
+          </div>
+          <div class="p-section">
+            <div class="p-label">Exit</div>
+            <div class="p-row"><span>Price</span><span class="p-val">$${trade.exitPrice.toFixed(2)}</span></div>
+            <div class="p-row"><span>Time</span><span class="p-val">${trade.exitTimeLabel ?? timeLabel(trade.exitTime)}</span></div>
+            <div class="p-row"><span>Trigger</span><span class="p-val">${trade.exitReason}</span></div>
+          </div>
+          <hr class="p-divider" />
+          <div class="p-section">
+            <div class="p-label">Risk</div>
+            <div class="p-row"><span>Stop</span><span class="p-val" style="color:var(--red)">$${trade.stopPrice.toFixed(2)}</span></div>
+            <div class="p-row"><span>Target</span><span class="p-val" style="color:var(--green)">$${trade.targetPrice.toFixed(2)}</span></div>
+          </div>
+          <div class="p-section">
+            <div class="p-label">MFE / MAE</div>
+            <div class="p-row"><span>MFE</span><span class="p-val p-win">${trade.mfe >= 0 ? '+' : ''}$${trade.mfe.toFixed(2)}</span></div>
+            <div class="p-row"><span>MAE</span><span class="p-val p-loss">$${trade.mae.toFixed(2)}</span></div>
+          </div>
+          <hr class="p-divider" />
+          <div class="p-section">
+            <div class="p-label">Event Log</div>
+            ${eventsHtml}
+          </div>
+          ${tradeListHtml}
+          <div class="p-provider">Yahoo Finance · ${payload.interval ?? '1d'} · ${n.toLocaleString()} bars</div>
+        `;
+      }
+
+      function renderStats(payload) {
+        const bars = payload.bars;
+        const first = bars[0], last = bars[bars.length - 1];
+        const change = first && last ? ((last.close - first.close) / first.close) * 100 : 0;
+        statsEl.innerHTML = [
+          ['Symbol', `${payload.symbol} · ${payload.exchange}`],
+          ['Last close', last ? `${last.close.toFixed(2)} ${payload.currency}` : '—'],
+          ['Range change', `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`],
+          ['Bars loaded', `${bars.length.toLocaleString()}${payload.lazyLoadedBars ? ` (+${payload.lazyLoadedBars.toLocaleString()} lazy)` : ''}`],
+          ['Interval', payload.interval ?? '1d'],
+          ['History', lazyExhausted ? 'No older bars' : (lazyLoading ? 'Loading older…' : 'Lazy ready')],
+        ].map(([label, value]) => `<div class="stat"><span>${label}</span><strong>${value}</strong></div>`).join('');
+      }
+
+      function setActiveRange(range) {
+        if (rangeSelect.value !== range) rangeSelect.value = range;
+      }
+
+      function coerceRangeForInterval(range, interval) {
+        // Yahoo intraday history is limited. Keep the demo responsive and honest:
+        // clamp impossible combinations rather than showing fake candles.
+        if (interval === '1m' || interval === '3m') return range === '7d' ? range : '7d';
+        if (['2m', '5m', '10m', '15m', '30m'].includes(interval)) {
+          return ['7d', '1mo'].includes(range) ? range : '1mo';
+        }
+        if (['1h', '4h', '12h', '24h'].includes(interval)) {
+          return ['7d', '1mo', '1y'].includes(range) ? range : '1y';
+        }
+        return range;
+      }
+
+      function barSortKey(time) {
+        return typeof time === 'number' ? time : Date.parse(`${time}T00:00:00Z`) / 1000;
+      }
+
+      function mergeBars(older, current) {
+        const byTime = new Map();
+        [...older, ...current].forEach((bar) => byTime.set(String(bar.time), bar));
+        return [...byTime.values()].sort((a, b) => barSortKey(a.time) - barSortKey(b.time));
+      }
+
+      function visibleBarCount(range) {
+        if (!range) return Math.min(Math.max(lastPayload?.bars?.length ?? 200, 80), 500);
+        return Math.min(Math.max(Math.ceil(range.to - range.from), 80), 500);
+      }
+
+      async function maybeLoadOlderBars() {
+        if (!chart || !lastPayload || lazyLoading || lazyExhausted) return;
+        if (Date.now() < lazySuppressUntil) return;
+        const logical = chart.timeScale().getVisibleLogicalRange?.();
+        if (!logical || logical.from > 8) return;
+        const first = lastPayload.bars?.[0];
+        if (!first || lazyLastBefore === String(first.time)) return;
+
+        lazyLoading = true;
+        lazyLastBefore = String(first.time);
+        const symbol = lastPayload.symbol || (symbolInput.value.trim().toUpperCase() || 'AAPL');
+        const interval = lastPayload.interval || intervalSelect.value;
+        const count = visibleBarCount(logical);
+        const before = first.time;
+        statsEl.insertAdjacentHTML('afterbegin', `<div class="stat"><span>Lazy load</span><strong>Loading ${count} older bars…</strong></div>`);
+
+        try {
+          const response = await fetch(`/api/bars?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&before=${encodeURIComponent(before)}&count=${encodeURIComponent(count)}`);
+          const page = await response.json();
+          if (!response.ok) throw new Error(page.error || 'Older-bar request failed');
+          const older = page.bars || [];
+          if (!older.length) {
+            lazyExhausted = true;
+            renderStats(lastPayload);
+            return;
+          }
+
+          const merged = mergeBars(older, lastPayload.bars);
+          const added = merged.length - lastPayload.bars.length;
+          if (added <= 0) {
+            lazyExhausted = true;
+            renderStats(lastPayload);
+            return;
+          }
+
+          const nextPayload = {
+            ...lastPayload,
+            bars: merged,
+            lazyLoadedBars: (lastPayload.lazyLoadedBars || 0) + added,
+          };
+          draw(nextPayload, {
+            fit: false,
+            visibleRange: { from: logical.from + added, to: logical.to + added },
+          });
+          startOverlayTracking(10);
+        } catch (error) {
+          statsEl.insertAdjacentHTML('afterbegin', `<div class="stat error"><span>Lazy load</span><strong>${error.message}</strong></div>`);
+        } finally {
+          lazyLoading = false;
+          if (lastPayload) {
+            renderStats(lastPayload);
+            updateBadge(lastPayload);
+          }
+        }
+      }
+
+      async function load() {
+        const symbol = symbolInput.value.trim().toUpperCase() || 'AAPL';
+        let range = rangeSelect.value;
+        const interval = intervalSelect.value;
+        const coercedRange = coerceRangeForInterval(range, interval);
+        if (coercedRange !== range) {
+          range = coercedRange;
+          setActiveRange(range);
+        }
+        statsEl.innerHTML = `<div class="stat"><span>Status</span><strong>Loading Yahoo ${interval} bars…</strong></div>`;
+        lazyLoading = false;
+        lazyExhausted = false;
+        lazyLastBefore = null;
+        try {
+          const response = await fetch(`/api/bars?symbol=${encodeURIComponent(symbol)}&range=${encodeURIComponent(range)}&interval=${encodeURIComponent(interval)}`);
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || 'Yahoo request failed');
+          if (!payload.bars.length) throw new Error('No bars returned');
+          payload.range = range;
+          payload.interval = payload.interval || interval;
+          draw(payload);
+        } catch (error) {
+          statsEl.innerHTML = `<div class="stat error"><span>Error</span><strong>${error.message}</strong></div>`;
+        }
+      }
+
+      // ── Range select ───────────────────────────────────────────────────────
+      rangeSelect.addEventListener('change', load);
+
+      // ── Symbol Enter key ────────────────────────────────────────────────────
+      symbolInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); load(); }
+      });
+
+      // ── Chart type (icon toggle: candles ↔ line) ──────────────────────────────
+      // SVG paths: candles (current = candles, click → line) and line (current = line, click → candles).
+      const CANDLES_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="8" width="4" height="9" fill="currentColor" stroke="none"/><line x1="8" y1="5" x2="8" y2="8"/><line x1="8" y1="17" x2="8" y2="20"/><rect x="14" y="5" width="4" height="6" fill="currentColor" stroke="none"/><line x1="16" y1="3" x2="16" y2="5"/><line x1="16" y1="11" x2="16" y2="14"/></svg>';
+      const LINE_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><polyline points="3,17 8,12 13,14 18,7 21,10"/></svg>';
+      const chartTypeBtn = document.querySelector('#chart-type-btn');
+      const chartTypeSelect = document.querySelector('#chart-type-select'); // legacy, hidden
+      chartTypeSelect.value = chartType;
+      const renderChartTypeBtn = () => {
+        // Show the icon for the CURRENT chart type (clicking it switches to the other).
+        chartTypeBtn.innerHTML = chartType === 'candles' ? CANDLES_SVG : LINE_SVG;
+        chartTypeBtn.title = chartType === 'candles' ? 'Candles — click for line' : 'Line — click for candles';
+        chartTypeBtn.setAttribute('aria-pressed', chartType === 'candles' ? 'false' : 'true');
+      };
+      renderChartTypeBtn();
+      chartTypeBtn.addEventListener('click', () => {
+        chartType = chartType === 'candles' ? 'line' : 'candles';
+        chartTypeSelect.value = chartType;
+        renderChartTypeBtn();
+        const currentRange = chart?.timeScale()?.getVisibleLogicalRange?.();
+        if (lastPayload) draw(lastPayload, { fit: false, visibleRange: currentRange || null });
+      });
+
+      // ── Interval select ──────────────────────────────────────────────────────
+      intervalSelect.addEventListener('change', load);
+
+      // ── Indicator editor ─────────────────────────────────────────────────────
+      const indicatorInputs = [
+        smaEnabled, smaPeriodsInput, emaEnabled, emaPeriodsInput, vwapEnabled,
+        bbEnabled, bbPeriodInput, bbMultInput,
+        rsiEnabled, rsiPeriodInput,
+        pdhlcEnabled, pwhlcEnabled, pmhlcEnabled,
+      ];
+      indicatorInputs.forEach((el) => {
+        el.addEventListener('change', () => {
+          updateIndicatorLabel();
+          redrawPreservingZoom();
+        });
+        el.addEventListener('input', () => {
+          updateIndicatorLabel();
+          redrawPreservingZoom();
+        });
+      });
+      const updateIndicatorLabel = () => {
+        const btn = document.querySelector('#indicator-menu-btn');
+        const hasActive =
+          smaEnabled.checked || emaEnabled.checked || vwapEnabled.checked ||
+          bbEnabled.checked || rsiEnabled.checked ||
+          pdhlcEnabled.checked || pwhlcEnabled.checked || pmhlcEnabled.checked;
+        if (hasActive) {
+          btn.classList.add('has-active');
+        } else {
+          btn.classList.remove('has-active');
+        }
+      };
+      updateIndicatorLabel();
+
+      // Volume layout toggle — flips the volume scale margins via initChart().
+      // Treated separately from the indicator set so changing it never affects
+      // the indicator button's "active" highlight.
+      volumePaneEnabled.addEventListener('change', () => {
+        volumeSeparate = !!volumePaneEnabled.checked;
+        redrawPreservingZoom();
+      });
+
+      // ── Show trades toggle ──────────────────────────────────────────────────
+      showTradesPill.addEventListener('click', () => {
+        showTrades = !showTrades;
+        showTradesPill.classList.toggle('active', showTrades);
+        updateExecutionLabel();
+        redrawPreservingZoom();
+      });
+
+      // ── Density ─────────────────────────────────────────────────────────────
+      densitySelect.addEventListener('change', () => {
+        density = densitySelect.value;
+        updateExecutionLabel();
+        redrawPreservingZoom();
+      });
+
+      // ── Marker shape (triangle / diamond) ─────────────────────────────────────
+      document.querySelectorAll('[data-shape]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('[data-shape]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          markerShape = btn.dataset.shape;
+          updateExecutionLabel();
+          scheduleOverlayUpdate();
+        });
+      });
+
+      // ── Marker size (percent of visible price range) ──────────────────────────
+      document.querySelector('#marker-size').addEventListener('input', () => {
+        updateExecutionLabel();
+        scheduleOverlayUpdate();
+      });
+
+      const updateExecutionLabel = () => {
+        const btn = document.querySelector('#execution-menu-btn');
+        if (showTrades) {
+          btn.classList.add('has-active');
+        } else {
+          btn.classList.remove('has-active');
+        }
+      };
+      updateExecutionLabel();
+
+      // ── Custom overlay marker click ─────────────────────────────────────────
+      // Click handling now lives inside createDasOverlay (the factory calls
+      // onMarkerClick → redrawPreservingZoom in initChart). The factory's
+      // click handler sets selectedTradeId and re-renders; this redundant
+      // global listener is removed.
+
+      // ── Reset view ──────────────────────────────────────────────────────────
+      resetBtn.addEventListener('click', () => {
+        if (chart) chart.timeScale().fitContent();
+      });
+
+      // ── Fullscreen ──────────────────────────────────────────────────────────
+      fullscreenBtn.addEventListener('click', () => {
+        const isFS = document.body.classList.toggle('fullscreen');
+        fullscreenBtn.classList.toggle('active', isFS);
+        fullscreenBtn.title = isFS ? 'Exit fullscreen' : 'Fullscreen';
+        // autoSize handles the geometry; just refresh the overlay after CSS settles.
+        setTimeout(refreshOverlay, 50);
+      });
+
+      // ── Menu dropdowns (Indicators / Execution) ────────────────────────────
+      // Open on trigger click; close on outside-click or Escape. Multiple
+      // popovers are mutually exclusive (opening one closes the other).
+      const menuDropdowns = [
+        { btnId: 'indicator-menu-btn', popId: 'indicator-menu' },
+        { btnId: 'execution-menu-btn', popId: 'execution-menu' },
+      ];
+      const closeAllMenus = (exceptPopId = null) => {
+        menuDropdowns.forEach(({ btnId, popId }) => {
+          if (popId === exceptPopId) return;
+          const pop = document.getElementById(popId);
+          const btn = document.getElementById(btnId);
+          if (pop && !pop.hidden) {
+            pop.hidden = true;
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+          }
+        });
+      };
+      menuDropdowns.forEach(({ btnId, popId }) => {
+        const btn = document.getElementById(btnId);
+        const pop = document.getElementById(popId);
+        if (!btn || !pop) return;
+        const positionPop = () => {
+          // Use `fixed` so the popover escapes any ancestor with overflow:hidden
+          // (the .chart-card clips positioned descendants). Position just below
+          // the trigger button's left edge, with a small gap, then clamp into
+          // the viewport so it never falls off-screen on narrow viewports.
+          const r = btn.getBoundingClientRect();
+          const popW = pop.offsetWidth || 220;
+          const left = Math.max(8, Math.min(r.left, window.innerWidth - popW - 8));
+          pop.style.top = (r.bottom + 6) + 'px';
+          pop.style.left = left + 'px';
+          // If the popover would overflow the bottom of the viewport, flip it
+          // above the trigger button instead.
+          const popH = pop.offsetHeight || 200;
+          if (r.bottom + 6 + popH > window.innerHeight - 8 && r.top - 6 - popH > 8) {
+            pop.style.top = Math.max(8, r.top - 6 - popH) + 'px';
+          }
+        };
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const willOpen = pop.hidden;
+          closeAllMenus(willOpen ? null : popId);
+          if (willOpen) {
+            pop.hidden = false;
+            positionPop();
+            btn.setAttribute('aria-expanded', 'true');
+          } else {
+            pop.hidden = true;
+            btn.setAttribute('aria-expanded', 'false');
+          }
+        });
+        // Re-anchor on viewport resize / scroll so the popover follows its
+        // trigger if the user scrolls the page while it's open.
+        const reposition = () => { if (!pop.hidden) positionPop(); };
+        window.addEventListener('resize', reposition);
+        window.addEventListener('scroll', reposition, { passive: true });
+        // Clicks inside the popover must not bubble up to the document
+        // outside-click handler that would immediately close it.
+        pop.addEventListener('click', (e) => e.stopPropagation());
+      });
+      document.addEventListener('click', (e) => {
+        // Close any popover whose trigger isn't the click target and whose
+        // body isn't the click target.
+        menuDropdowns.forEach(({ btnId, popId }) => {
+          const pop = document.getElementById(popId);
+          const btn = document.getElementById(btnId);
+          if (!pop || pop.hidden) return;
+          if (btn.contains(e.target) || pop.contains(e.target)) return;
+          pop.hidden = true;
+          btn.setAttribute('aria-expanded', 'false');
+        });
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeAllMenus();
+      });
+
+      // ── Panel trade buttons ──────────────────────────────────────────────────
+      document.getElementById('panel').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-trade-id]');
+        if (!btn) return;
+        selectedTradeId = btn.dataset.tradeId;
+        redrawPreservingZoom();
+      });
+
+      // ── Resize / scale interaction ───────────────────────────────────────────
+      // Chart auto-sizes to its container. The DAS overlay factory watches
+      // its own ResizeObserver + chart time/price events, so we only need a
+      // fallback window-resize trigger for fullscreen/responsive transitions
+      // that change the document viewport without resizing the chart canvas.
+      const refreshOverlay = () => scheduleOverlayUpdate();
+      window.addEventListener('resize', refreshOverlay);
+
+      // Price-axis dragging/pinching/wheeling changes the series coordinate
+      // transform without resizing the DOM. Keep the custom SVG overlay synced
+      // while that gesture is active so markers remain attached to candles.
+      chartEl.addEventListener('pointerdown', () => {
+        overlayPointerDown = true;
+        startOverlayTracking(30);
+      }, { passive: true });
+      window.addEventListener('pointerup', () => {
+        overlayPointerDown = false;
+        startOverlayTracking(20);
+      }, { passive: true });
+      window.addEventListener('pointercancel', () => {
+        overlayPointerDown = false;
+        startOverlayTracking(20);
+      }, { passive: true });
+      window.addEventListener('blur', () => {
+        overlayPointerDown = false;
+        startOverlayTracking(20);
+      });
+      chartEl.addEventListener('wheel', () => startOverlayTracking(30), { passive: true });
+      chartEl.addEventListener('dblclick', () => startOverlayTracking(30));
+
+      // ── Drawing tools ─────────────────────────────────────────────────────────
+      // Free-draw pen, rectangle, and trend line. Drawings live in chart
+      // coordinates (time + price) and are re-projected to pixels on every
+      // overlay update so they stay glued to candles through pan / zoom.
+      const drawToolbar = document.getElementById('draw-toolbar');
+      const drawOverlay = document.getElementById('draw-overlay');
+      const drawSvg = drawOverlay.querySelector('svg');
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+
+      // Default drawing color; user-selected swatch overrides per draw.
+      let drawColor = '#ff682c';
+
+      // Tool state. 'cursor' = drawing disabled, panning works normally.
+      let activeDrawTool = 'cursor';
+      let drawings = [];                // saved drawings
+      let drawingDraft = null;          // in-progress shape
+      let drawingIdSeq = 0;
+
+      // Selection / drag-move state (cursor-tool only)
+      let selectedDrawingId = null;      // id of the currently selected drawing
+      let draggingDrawing = false;      // true while user is dragging a selected drawing
+      let dragStartPixel = null;        // {x,y} in overlay pixels where drag started
+      let dragOrigPoints = null;        // snapshot of drawing.points at drag start
+
+      // Touch-drawing state. On mobile we draw two-point shapes in two
+      // stages: the first tap locks point 1 and shows a preview, and the
+      // second tap (or lift after a drag) finalizes the shape. `touchDidDrag`
+      // distinguishes "user lifted finger right away after tap" (wait for
+      // second tap) from "user dragged before lifting" (finalize now).
+      let touchDrawStart = null;        // {time,price} of first touch tap
+      let touchDidDrag = false;         // true once the finger moved after first tap
+
+      function setActiveDrawTool(tool) {
+        activeDrawTool = tool;
+        // Reflect active state on toolbar buttons
+        drawToolbar.querySelectorAll('.draw-btn').forEach((btn) => {
+          btn.classList.toggle('active', btn.dataset.tool === tool);
+        });
+        // Set crosshair cursor on chart-host when a drawing tool is active
+        // so the user knows clicks will draw. Cursor / clear revert to default.
+        chartHost.style.cursor = (tool !== 'cursor' && tool !== 'clear') ? 'crosshair' : '';
+        // While a drawing tool is active we also need to block the browser's
+        // default touch gestures (pan / pinch) on the chart, otherwise the
+        // lightweight-charts canvas scrolls horizontally on touch and we
+        // lose the draw. The pointerdown handler additionally calls
+        // preventDefault() for an extra layer of protection.
+        chartHost.classList.toggle('drawing-mode', tool !== 'cursor' && tool !== 'clear');
+        // Switching tools also cancels any in-progress touch-tap sequence
+        // (the preview marker and pending endpoint). Without this the user
+        // could draw with one tool, switch, and have the second tap land
+        // in a different tool than they expected.
+        const hadTouchPreview = touchDrawStart !== null || drawingDraft !== null;
+        touchDrawStart = null;
+        touchDidDrag = false;
+        drawingDraft = null;
+        if (tool !== 'cursor') {
+          selectedDrawingId = null;
+          draggingDrawing = false;
+          dragStartPixel = null;
+          dragOrigPoints = null;
+        }
+        if (hadTouchPreview) renderDrawings();
+      }
+
+      // Convert "#rrggbb" → "rgba(r,g,b,a)" for translucent fills.
+      function hexToRgba(hex, alpha) {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+      }
+
+      drawToolbar.addEventListener('click', (e) => {
+        // Color swatch selection — must come BEFORE tool-button handling
+        // because swatches live inside the toolbar container.
+        const swatch = e.target.closest('.draw-color-swatch');
+        if (swatch) {
+          drawColor = swatch.dataset.color;
+          drawToolbar.querySelectorAll('.draw-color-swatch').forEach((s) => s.classList.remove('active'));
+          swatch.classList.add('active');
+          return;
+        }
+        const btn = e.target.closest('.draw-btn');
+        if (!btn) return;
+        const tool = btn.dataset.tool;
+        if (tool === 'clear') {
+          drawings = [];
+          drawingDraft = null;
+          touchDrawStart = null;
+          touchDidDrag = false;
+          renderDrawings();
+          return;
+        }
+        setActiveDrawTool(tool);
+      });
+
+      // Esc returns to cursor mode and cancels any in-progress shape.
+      window.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        // Don't fight menu popovers — let them close first.
+        const openPopover = document.querySelector('.menu-pop:not([hidden])');
+        if (openPopover) return;
+        if (activeDrawTool !== 'cursor' || drawingDraft || touchDrawStart) {
+          drawingDraft = null;
+          touchDrawStart = null;
+          touchDidDrag = false;
+          setActiveDrawTool('cursor');
+          renderDrawings();
+        }
+      });
+
+      // Delete / Backspace removes the currently selected drawing.
+      // Skipped when focus is inside a text-editable control so typing in
+      // the symbol input, indicator parameters, etc. still works.
+      window.addEventListener('keydown', (e) => {
+        if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+        const tag = (e.target?.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        if (e.target?.isContentEditable) return;
+        if (!selectedDrawingId) return;
+        e.preventDefault();
+        drawings = drawings.filter((d) => d.id !== selectedDrawingId);
+        selectedDrawingId = null;
+        draggingDrawing = false;
+        dragStartPixel = null;
+        dragOrigPoints = null;
+        renderDrawings();
+      });
+
+      // Convert a pointer event to overlay-local pixel coordinates. The overlay
+      // fills #chart-host (inset:0), so chartHost's rect is the right frame.
+      function eventToOverlayPoint(e) {
+        const rect = chartHost.getBoundingClientRect();
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      }
+
+      // Convert overlay-local pixels to chart data (time, price).
+      // coordinateToTime returns null when the x is past the loaded bar range;
+      // in that case clamp to the nearest loaded bar so the drawing still
+      // anchors to a real point.
+      function pixelToChart(x, y) {
+        if (!chart || !candleSeries) return null;
+        let time = chart.timeScale().coordinateToTime(x);
+        const price = candleSeries.coordinateToPrice(y);
+        if (time == null && lastPayload?.bars?.length) {
+          const bars = lastPayload.bars;
+          const visible = chart.timeScale().getVisibleLogicalRange?.();
+          // Fall back to the nearest bar by x position when out of range.
+          let nearest = bars[0];
+          let bestDx = Math.abs(chart.timeScale().timeToCoordinate(bars[0].time) - x);
+          for (const bar of bars) {
+            const bx = chart.timeScale().timeToCoordinate(bar.time);
+            if (bx == null) continue;
+            const dx = Math.abs(bx - x);
+            if (dx < bestDx) { bestDx = dx; nearest = bar; }
+          }
+          time = nearest?.time ?? null;
+        }
+        if (time == null || price == null || !Number.isFinite(price)) return null;
+        return { time, price };
+      }
+
+      // Perpendicular distance from point (px, py) to segment (x1,y1)-(x2,y2).
+      function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+        const dx = x2 - x1, dy = y2 - y1;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+        let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+        const projX = x1 + t * dx, projY = y1 + t * dy;
+        return Math.hypot(px - projX, py - projY);
+      }
+
+      // Hit-test a drawing against a pixel point (overlay-local coords).
+      // Returns true if the click is within TOL pixels of the shape's stroke
+      // (rect also accepts interior hits). Tolerance is generous so the user
+      // doesn't need pixel-perfect aim.
+      function hitTestDrawing(d, px, py) {
+        if (!chart || !candleSeries) return false;
+        const TOL = 8;
+        if (d.type === 'pen') {
+          const pts = d.points
+            .map((p) => ({
+              x: chart.timeScale().timeToCoordinate(p.time),
+              y: candleSeries.priceToCoordinate(p.price),
+            }))
+            .filter((p) => p.x != null && p.y != null);
+          for (let i = 1; i < pts.length; i++) {
+            if (pointToSegmentDistance(px, py, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y) < TOL) return true;
+          }
+          return false;
+        }
+        if (d.type === 'rect') {
+          const [a, b] = d.points;
+          const ax = chart.timeScale().timeToCoordinate(a.time);
+          const ay = candleSeries.priceToCoordinate(a.price);
+          const bx = chart.timeScale().timeToCoordinate(b.time);
+          const by = candleSeries.priceToCoordinate(b.price);
+          if (ax == null || ay == null || bx == null || by == null) return false;
+          const left = Math.min(ax, bx), right = Math.max(ax, bx);
+          const top = Math.min(ay, by), bottom = Math.max(ay, by);
+          // Hit on border OR inside — but require at least edge proximity so
+          // the user can also click empty space to deselect.
+          const onEdge =
+            (Math.abs(px - left) < TOL && py >= top - TOL && py <= bottom + TOL) ||
+            (Math.abs(px - right) < TOL && py >= top - TOL && py <= bottom + TOL) ||
+            (Math.abs(py - top) < TOL && px >= left - TOL && px <= right + TOL) ||
+            (Math.abs(py - bottom) < TOL && px >= left - TOL && px <= right + TOL);
+          const inside = px > left + TOL && px < right - TOL && py > top + TOL && py < bottom - TOL;
+          return onEdge || inside;
+        }
+        if (d.type === 'line' || d.type === 'fib') {
+          const [a, b] = d.points;
+          const ax = chart.timeScale().timeToCoordinate(a.time);
+          const ay = candleSeries.priceToCoordinate(a.price);
+          const bx = chart.timeScale().timeToCoordinate(b.time);
+          const by = candleSeries.priceToCoordinate(b.price);
+          if (ax == null || ay == null || bx == null || by == null) return false;
+          return pointToSegmentDistance(px, py, ax, ay, bx, by) < TOL;
+        }
+        return false;
+      }
+
+      // Walk drawings topmost-first (last-drawn on top) and return the first
+      // one that contains the click point. Returns null when no hit.
+      function findDrawingAt(px, py) {
+        for (let i = drawings.length - 1; i >= 0; i--) {
+          if (hitTestDrawing(drawings[i], px, py)) return drawings[i];
+        }
+        return null;
+      }
+
+      // ── Pointer interaction ──────────────────────────────────────────────────
+      // Listeners are attached to #chart-host (NOT #draw-overlay) so wheel
+      // events for zoom pass through naturally. Capture-phase listeners fire
+      // BEFORE the lightweight-charts canvas's own listeners, so
+      // stopImmediatePropagation() reliably prevents chart-pan from starting
+      // when the user begins a draw stroke.
+      chartHost.addEventListener('pointerdown', (e) => {
+        if (!chart || !candleSeries) return;
+        // Don't swallow drags that begin on a popover or panel.
+        if (e.target.closest('.menu-pop') || e.target.closest('#panel')) return;
+
+        // Cursor mode: try to select / begin dragging a drawing first. Only
+        // fall through to chart-pan if the click missed every drawing.
+        if (activeDrawTool === 'cursor') {
+          const px = eventToOverlayPoint(e);
+          const hit = findDrawingAt(px.x, px.y);
+          if (hit) {
+            e.preventDefault();
+            e.stopImmediatePropagation(); // prevent chart-pan
+            selectedDrawingId = hit.id;
+            draggingDrawing = true;
+            dragStartPixel = { x: px.x, y: px.y };
+            dragOrigPoints = hit.points.map((p) => ({ time: p.time, price: p.price }));
+            // Suppress touch pan immediately on grab, not just on first move.
+            chartHost.style.touchAction = 'none';
+            try { chartHost.setPointerCapture?.(e.pointerId); } catch (_) {}
+            renderDrawings();
+            return;
+          }
+          // Empty-space click clears the current selection (if any) and lets
+          // the chart pan normally — don't stopPropagation.
+          if (selectedDrawingId) {
+            selectedDrawingId = null;
+            renderDrawings();
+          }
+          return;
+        }
+        if (activeDrawTool === 'clear') return;
+
+        // At this point a drawing tool is active. On touch devices the
+        // browser would otherwise interpret the finger as a pan gesture on
+        // the chart canvas, which is why we both rely on the
+        // `touch-action: none` CSS (set when the tool becomes active) AND
+        // belt-and-suspenders with preventDefault/stopImmediatePropagation
+        // here. We must stop propagation even before we know whether the
+        // pointer event yields a usable chart point, otherwise the
+        // lightweight-charts handler picks up the touchstart and pans.
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const px = eventToOverlayPoint(e);
+        const cp = pixelToChart(px.x, px.y);
+        const isTouchPointer = e.pointerType === 'touch';
+        const isTwoPoint = activeDrawTool === 'rect' || activeDrawTool === 'line' || activeDrawTool === 'fib';
+
+        if (isTouchPointer && isTwoPoint && touchDrawStart) {
+          // Second tap of a touch draw — finalize the shape NOW (rather than
+          // waiting for pointerup) so the user gets immediate feedback.
+          // We bypass finishDrawing() because that path waits for a drag
+          // flag; tap-tap is a deliberate two-stage commit.
+          const draft = {
+            id: `d${++drawingIdSeq}`,
+            type: activeDrawTool,
+            points: [touchDrawStart, { ...cp }],
+            color: drawColor,
+          };
+          touchDrawStart = null;
+          touchDidDrag = false;
+          drawingDraft = null;
+          if (e?.pointerId != null) { try { chartHost.releasePointerCapture?.(e.pointerId); } catch (_) {} }
+          // Degeneracy check: avoid zero-length lines / zero-area rects.
+          if (cp) {
+            const [a, b] = draft.points;
+            const ax = chart.timeScale().timeToCoordinate(a.time);
+            const ay = candleSeries.priceToCoordinate(a.price);
+            const bx = chart.timeScale().timeToCoordinate(b.time);
+            const by = candleSeries.priceToCoordinate(b.price);
+            const degenerate = !cp || ax == null || ay == null || bx == null || by == null
+              || (Math.abs(ax - bx) < 2 && Math.abs(ay - by) < 2);
+            if (!degenerate) {
+              drawings.push(draft);
+            }
+          }
+          renderDrawings();
+          return;
+        }
+
+        // First tap of a touch draw on a two-point tool — set the start
+        // point and show a preview. The preview's endpoint follows the
+        // finger on pointermove; finalization happens on pointerup if the
+        // user dragged, or on the next pointerdown if they lifted cleanly.
+        if (isTouchPointer && isTwoPoint) {
+          if (!cp) return;
+          touchDrawStart = { ...cp };
+          touchDidDrag = false;
+          drawingDraft = {
+            id: `d${++drawingIdSeq}`,
+            type: activeDrawTool,
+            points: [{ ...cp }, { ...cp }],
+            color: drawColor,
+          };
+          try { chartHost.setPointerCapture?.(e.pointerId); } catch (_) {}
+          renderDrawings();
+          return;
+        }
+
+        if (!cp) return;
+        // setPointerCapture throws on synthetic events with no real pointer —
+        // try/catch keeps the handler alive in test contexts and on browsers
+        // that don't support capture for the given pointer type.
+        try { chartHost.setPointerCapture?.(e.pointerId); } catch (_) {}
+        if (activeDrawTool === 'pen') {
+          drawingDraft = { id: `d${++drawingIdSeq}`, type: 'pen', points: [{ ...cp }], color: drawColor };
+        } else {
+          // Desktop two-point draw — drag from start to end (existing UX).
+          drawingDraft = { id: `d${++drawingIdSeq}`, type: activeDrawTool, points: [{ ...cp }, { ...cp }], color: drawColor };
+        }
+        renderDrawings();
+      }, true); // capture phase
+
+      chartHost.addEventListener('pointermove', (e) => {
+        // Touch draw: any movement during a tap-tap sequence means the user
+        // is doing tap-drag (instead of tap-tap). The pointerup handler
+        // uses this flag to decide between "finalize now" (drag) and
+        // "keep preview, wait for second tap" (no drag).
+        if (e.pointerType === 'touch' && touchDrawStart && drawingDraft) {
+          touchDidDrag = true;
+        }
+        // When actively dragging a drawing in cursor mode on touch, suppress
+        // touch-action so the browser doesn't also pan the chart underneath.
+        if (draggingDrawing) {
+          chartHost.style.touchAction = 'none';
+        }
+
+        // Drag-move of a selected drawing takes priority over drawing drafts.
+        if (draggingDrawing && selectedDrawingId && dragStartPixel && dragOrigPoints) {
+          const px = eventToOverlayPoint(e);
+          const dX = px.x - dragStartPixel.x;
+          const dY = px.y - dragStartPixel.y;
+          const d = drawings.find((x) => x.id === selectedDrawingId);
+          if (!d) return;
+          // Pixel-delta approach: re-project each original point through the
+          // current pixel/price ratio. Works for both string (daily bar) and
+          // numeric (intraday) times — we never add/subtract time values.
+          d.points = dragOrigPoints.map((orig) => {
+            const ox = chart.timeScale().timeToCoordinate(orig.time);
+            const oy = candleSeries.priceToCoordinate(orig.price);
+            if (ox == null || oy == null) return { time: orig.time, price: orig.price };
+            const newTime = chart.timeScale().coordinateToTime(ox + dX);
+            const newPrice = candleSeries.coordinateToPrice(oy + dY);
+            if (newTime == null || newPrice == null || !Number.isFinite(newPrice)) {
+              return { time: orig.time, price: orig.price };
+            }
+            return { time: newTime, price: newPrice };
+          });
+          renderDrawings();
+          return;
+        }
+
+        // In cursor mode (no drag, no draft), update the cursor to signal
+        // that a hovered drawing is grabbable.
+        if (activeDrawTool === 'cursor' && !drawingDraft) {
+          const px = eventToOverlayPoint(e);
+          const over = findDrawingAt(px.x, px.y);
+          chartHost.style.cursor = over ? 'move' : '';
+        }
+
+        if (!drawingDraft) return;
+        const px = eventToOverlayPoint(e);
+        const cp = pixelToChart(px.x, px.y);
+        if (!cp) return;
+        if (drawingDraft.type === 'pen') {
+          // Only push a new point when the user has moved a meaningful
+          // distance in pixels — keeps the polyline dense but not noisy.
+          const last = drawingDraft.points[drawingDraft.points.length - 1];
+          const lp = chart.timeScale().timeToCoordinate(last.time);
+          const yp = candleSeries.priceToCoordinate(last.price);
+          if (lp != null && yp != null) {
+            const dx = px.x - lp, dy = px.y - yp;
+            if (dx * dx + dy * dy < 4) return; // <2px move: skip
+          }
+          drawingDraft.points.push({ ...cp });
+        } else {
+          drawingDraft.points[1] = { ...cp };
+        }
+        renderDrawings();
+      });
+
+      function finishDrawing(e) {
+        // End of a drag-move on a selected drawing — clear drag state.
+        if (draggingDrawing) {
+          draggingDrawing = false;
+          dragStartPixel = null;
+          dragOrigPoints = null;
+          // Restore touch-action so the chart can pan again in cursor mode.
+          chartHost.style.touchAction = '';
+          if (e?.pointerId != null) { try { chartHost.releasePointerCapture?.(e.pointerId); } catch (_) {} }
+          return;
+        }
+
+        // Touch tap-tap: if the user lifted their finger without dragging
+        // after the first tap, KEEP the preview on screen and wait for the
+        // second tap (handled in pointerdown). This is the new mobile UX —
+        // a tap-tap flow instead of drag-to-draw.
+        if (touchDrawStart && drawingDraft && !touchDidDrag) {
+          if (e?.pointerId != null) { try { chartHost.releasePointerCapture?.(e.pointerId); } catch (_) {} }
+          // Don't finalize; just keep the draft visible until second tap.
+          return;
+        }
+
+        // Touch tap-drag: the user tapped point 1 then dragged before
+        // lifting. Finalize now using the live endpoint.
+        if (touchDrawStart && drawingDraft && touchDidDrag) {
+          if (e?.pointerId != null) { try { chartHost.releasePointerCapture?.(e.pointerId); } catch (_) {} }
+          const draft = drawingDraft;
+          touchDrawStart = null;
+          touchDidDrag = false;
+          drawingDraft = null;
+          // Degeneracy check (same rules as desktop finalize).
+          if (draft.type === 'pen') {
+            if (draft.points.length < 2) { renderDrawings(); return; }
+          } else {
+            const [a, b] = draft.points;
+            if (!a || !b) { renderDrawings(); return; }
+            const ax = chart.timeScale().timeToCoordinate(a.time);
+            const bx = chart.timeScale().timeToCoordinate(b.time);
+            const ay = candleSeries.priceToCoordinate(a.price);
+            const by = candleSeries.priceToCoordinate(b.price);
+            if (ax == null || bx == null || ay == null || by == null) { renderDrawings(); return; }
+            if (Math.abs(ax - bx) < 2 && Math.abs(ay - by) < 2) { renderDrawings(); return; }
+          }
+          drawings.push(draft);
+          renderDrawings();
+          return;
+        }
+
+        if (!drawingDraft) return;
+        if (e?.pointerId != null) { try { chartHost.releasePointerCapture?.(e.pointerId); } catch (_) {} }
+        const draft = drawingDraft;
+        drawingDraft = null;
+
+        // Reject degenerate shapes so a stray click doesn't leave a dot/line.
+        if (draft.type === 'pen') {
+          if (draft.points.length < 2) { renderDrawings(); return; }
+        } else {
+          const [a, b] = draft.points;
+          if (!a || !b) { renderDrawings(); return; }
+          const ax = chart.timeScale().timeToCoordinate(a.time);
+          const bx = chart.timeScale().timeToCoordinate(b.time);
+          const ay = candleSeries.priceToCoordinate(a.price);
+          const by = candleSeries.priceToCoordinate(b.price);
+          if (ax == null || bx == null || ay == null || by == null) { renderDrawings(); return; }
+          if (Math.abs(ax - bx) < 2 && Math.abs(ay - by) < 2) { renderDrawings(); return; }
+        }
+        drawings.push(draft);
+        renderDrawings();
+      }
+      chartHost.addEventListener('pointerup', finishDrawing);
+      chartHost.addEventListener('pointercancel', finishDrawing);
+
+      // ── Render drawings ──────────────────────────────────────────────────────
+      // SVG element factory keeps stroke-width and color consistent.
+      function makeDrawEl(name, attrs) {
+        const el = document.createElementNS(SVG_NS, name);
+        for (const k in attrs) el.setAttribute(k, attrs[k]);
+        return el;
+      }
+
+      function renderDrawings() {
+        if (!drawSvg) return;
+        // Clear without losing the <svg> root
+        while (drawSvg.firstChild) drawSvg.removeChild(drawSvg.firstChild);
+
+        if (!chart || !candleSeries) return;
+        const all = drawingDraft ? [...drawings, drawingDraft] : drawings;
+
+        // Selection halo parameters — thick, low-opacity white stroke drawn
+        // BEHIND the colored geometry so the selected drawing reads as glowing.
+        const HALO_WIDTH_BUMP = 6;
+        const HALO_OPACITY = 0.55;
+
+        for (const d of all) {
+          const color = d.color || drawColor;
+          const isSelected = d.id === selectedDrawingId;
+          if (d.type === 'pen') {
+            const pts = d.points
+              .map((p) => ({
+                x: chart.timeScale().timeToCoordinate(p.time),
+                y: candleSeries.priceToCoordinate(p.price),
+              }))
+              .filter((p) => p.x != null && p.y != null);
+            if (pts.length < 2) continue;
+            const points = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+            if (isSelected) {
+              drawSvg.appendChild(makeDrawEl('polyline', {
+                points, stroke: '#ffffff', fill: 'none',
+                'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+                'stroke-width': 2 + HALO_WIDTH_BUMP,
+                opacity: HALO_OPACITY,
+              }));
+            }
+            drawSvg.appendChild(makeDrawEl('polyline', {
+              points,
+              stroke: color, fill: 'none',
+              'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+              'stroke-width': 2,
+            }));
+          } else if (d.type === 'rect' || d.type === 'line') {
+            const [a, b] = d.points;
+            const ax = chart.timeScale().timeToCoordinate(a.time);
+            const ay = candleSeries.priceToCoordinate(a.price);
+            const bx = chart.timeScale().timeToCoordinate(b.time);
+            const by = candleSeries.priceToCoordinate(b.price);
+            if (ax == null || ay == null || bx == null || by == null) continue;
+            const x = Math.min(ax, bx), y = Math.min(ay, by);
+            const w = Math.abs(bx - ax), h = Math.abs(by - ay);
+            if (d.type === 'rect') {
+              if (isSelected) {
+                drawSvg.appendChild(makeDrawEl('rect', {
+                  x: x.toFixed(2), y: y.toFixed(2),
+                  width: w.toFixed(2), height: h.toFixed(2),
+                  stroke: '#ffffff', fill: 'none',
+                  'stroke-width': 1.5 + HALO_WIDTH_BUMP,
+                  opacity: HALO_OPACITY,
+                }));
+              }
+              drawSvg.appendChild(makeDrawEl('rect', {
+                x: x.toFixed(2), y: y.toFixed(2),
+                width: w.toFixed(2), height: h.toFixed(2),
+                stroke: color, fill: hexToRgba(color, 0.08),
+                'stroke-width': 1.5,
+              }));
+            } else {
+              if (isSelected) {
+                drawSvg.appendChild(makeDrawEl('line', {
+                  x1: ax.toFixed(2), y1: ay.toFixed(2),
+                  x2: bx.toFixed(2), y2: by.toFixed(2),
+                  stroke: '#ffffff', 'stroke-width': 2 + HALO_WIDTH_BUMP,
+                  'stroke-linecap': 'round',
+                  opacity: HALO_OPACITY,
+                }));
+              }
+              drawSvg.appendChild(makeDrawEl('line', {
+                x1: ax.toFixed(2), y1: ay.toFixed(2),
+                x2: bx.toFixed(2), y2: by.toFixed(2),
+                stroke: color, 'stroke-width': 2,
+                'stroke-linecap': 'round',
+              }));
+              // Endpoint dots so trend lines are clearly grabbable
+              drawSvg.appendChild(makeDrawEl('circle', { cx: ax.toFixed(2), cy: ay.toFixed(2), r: 3, fill: color, stroke: 'none' }));
+              drawSvg.appendChild(makeDrawEl('circle', { cx: bx.toFixed(2), cy: by.toFixed(2), r: 3, fill: color, stroke: 'none' }));
+            }
+          } else if (d.type === 'fib') {
+            const [a, b] = d.points;
+            const ax = chart.timeScale().timeToCoordinate(a.time);
+            const ay = candleSeries.priceToCoordinate(a.price);
+            const bx = chart.timeScale().timeToCoordinate(b.time);
+            const by = candleSeries.priceToCoordinate(b.price);
+            if (ax == null || ay == null || bx == null || by == null) continue;
+
+            const high = Math.max(a.price, b.price);
+            const low = Math.min(a.price, b.price);
+            const range = high - low;
+            const leftX = Math.min(ax, bx);
+            const rightX = Math.max(ax, bx);
+
+            // Standard fib levels: 0, 0.236, 0.382, 0.5, 0.618, 0.786, 1
+            const levels = [
+              { pct: 0, label: '0' },
+              { pct: 0.236, label: '0.236' },
+              { pct: 0.382, label: '0.382' },
+              { pct: 0.5, label: '0.5' },
+              { pct: 0.618, label: '0.618' },
+              { pct: 0.786, label: '0.786' },
+              { pct: 1, label: '1' },
+            ];
+
+            // Halo: outline the bounding rectangle and outline each endpoint dot.
+            if (isSelected) {
+              const hx = Math.min(ax, bx), hy = Math.min(ay, by);
+              const hw = Math.abs(bx - ax), hh = Math.abs(by - ay);
+              drawSvg.appendChild(makeDrawEl('rect', {
+                x: hx.toFixed(2), y: hy.toFixed(2),
+                width: hw.toFixed(2), height: hh.toFixed(2),
+                stroke: '#ffffff', fill: 'none',
+                'stroke-width': 1 + HALO_WIDTH_BUMP,
+                'stroke-dasharray': '4 4',
+                opacity: HALO_OPACITY,
+              }));
+              drawSvg.appendChild(makeDrawEl('circle', {
+                cx: ax.toFixed(2), cy: ay.toFixed(2), r: 6,
+                fill: 'none', stroke: '#ffffff', 'stroke-width': 2,
+                opacity: HALO_OPACITY,
+              }));
+              drawSvg.appendChild(makeDrawEl('circle', {
+                cx: bx.toFixed(2), cy: by.toFixed(2), r: 6,
+                fill: 'none', stroke: '#ffffff', 'stroke-width': 2,
+                opacity: HALO_OPACITY,
+              }));
+            }
+
+            for (const level of levels) {
+              const price = high - range * level.pct;
+              const y = candleSeries.priceToCoordinate(price);
+              if (y == null) continue;
+
+              // Horizontal level line (dashed, translucent)
+              drawSvg.appendChild(makeDrawEl('line', {
+                x1: leftX.toFixed(2), y1: y.toFixed(2),
+                x2: rightX.toFixed(2), y2: y.toFixed(2),
+                stroke: color, 'stroke-width': 1,
+                'stroke-dasharray': '3 3', opacity: '0.7',
+              }));
+
+              // Level label (right side, monospace, sits on the line)
+              const text = makeDrawEl('text', {
+                x: (rightX + 4).toFixed(2), y: (y + 4).toFixed(2),
+                fill: color, 'font-size': '10', 'font-family': 'monospace',
+              });
+              text.textContent = level.label;
+              drawSvg.appendChild(text);
+            }
+
+            // Vertical anchor connecting the two swing points
+            drawSvg.appendChild(makeDrawEl('line', {
+              x1: ax.toFixed(2), y1: ay.toFixed(2),
+              x2: bx.toFixed(2), y2: by.toFixed(2),
+              stroke: color, 'stroke-width': 1, opacity: '0.4',
+            }));
+            // Anchor dots so users see the endpoints
+            drawSvg.appendChild(makeDrawEl('circle', { cx: ax.toFixed(2), cy: ay.toFixed(2), r: 3, fill: color, stroke: 'none' }));
+            drawSvg.appendChild(makeDrawEl('circle', { cx: bx.toFixed(2), cy: by.toFixed(2), r: 3, fill: color, stroke: 'none' }));
+          }
+        }
+
+        // Touch draw pending-start marker. When the user has tapped point 1
+        // on a touch device and we're waiting for the second tap, draw a
+        // distinct highlighted dot at the start so they can see where the
+        // shape will anchor. Rendered AFTER all drawings/drafts so it
+        // always sits on top.
+        if (touchDrawStart) {
+          const sx = chart.timeScale().timeToCoordinate(touchDrawStart.time);
+          const sy = candleSeries.priceToCoordinate(touchDrawStart.price);
+          if (sx != null && sy != null) {
+            // Outer translucent halo for visual prominence
+            drawSvg.appendChild(makeDrawEl('circle', {
+              cx: sx.toFixed(2), cy: sy.toFixed(2), r: 9,
+              fill: drawColor, opacity: '0.25', stroke: 'none',
+            }));
+            // Solid filled dot with white outline (matches toolbar swatches)
+            drawSvg.appendChild(makeDrawEl('circle', {
+              cx: sx.toFixed(2), cy: sy.toFixed(2), r: 5,
+              fill: drawColor, stroke: '#ffffff', 'stroke-width': 2,
+            }));
+          }
+        }
+      }
+
+      // Expose for debugging / Playwright tests
+      window.demoDrawings = {
+        get drawings() { return drawings; },
+        set drawings(v) { drawings = v; renderDrawings(); },
+        get color() { return drawColor; },
+        set color(v) { drawColor = v; },
+        get selectedId() { return selectedDrawingId; },
+        get isDragging() { return draggingDrawing; },
+        get touchDrawStart() { return touchDrawStart; },
+        get touchDidDrag() { return touchDidDrag; },
+        get chartHost() { return chartHost; },
+        get chart() { return chart; },
+        get candleSeries() { return candleSeries; },
+        setTool: setActiveDrawTool,
+        getTool: () => activeDrawTool,
+        render: renderDrawings,
+      };
+
+      // ── Init ─────────────────────────────────────────────────────────────────
+      load().catch((error) => {
+        statsEl.innerHTML = `<div class="stat error"><span>Error</span><strong>${error.message}</strong></div>`;
+      });
+    </script>
+  </body>
+</html>

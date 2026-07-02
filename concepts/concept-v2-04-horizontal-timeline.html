@@ -1,0 +1,369 @@
+<!-- Concept 04: Horizontal Timeline — entry → stop/target → exit on time axis -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Concept 04 — Horizontal Timeline (v2)</title>
+<style>
+  :root{
+    --bg:#1a2018;
+    --surface:#222b1f;
+    --surface2:#2a3424;
+    --border:#3a4632;
+    --text:#e8e8e8;
+    --muted:#8a9486;
+    --dim:#5e6657;
+    --orange:#ff682c;
+    --buy:#00bfff;
+    --sell:#ff4444;
+    --green:#22c55e;
+    --red:#ef4444;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,sans-serif;padding:24px;min-height:100vh}
+  .title{width:760px;margin:0 auto 8px;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+  .title b{color:var(--orange)}
+  .panel{width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  /* Header */
+  .hdr{display:grid;grid-template-columns:1fr auto auto;gap:18px;align-items:center;padding:14px 20px;background:linear-gradient(135deg,#1c2418,#222b1f);border-bottom:1px solid var(--border)}
+  .hdr h1{font-size:20px;font-weight:800;letter-spacing:-.01em;line-height:1}
+  .hdr h1 .meta{font-size:11px;color:var(--muted);font-weight:500;display:block;margin-top:2px;letter-spacing:.04em}
+  .dir{font-size:11px;font-weight:800;letter-spacing:.14em;padding:6px 14px;border-radius:6px}
+  .dir.long{color:var(--buy);background:rgba(0,191,255,.1);border:1px solid rgba(0,191,255,.35)}
+  .pnl{text-align:right}
+  .pnl .amt{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .pnl .amt.neg{color:var(--red)}
+  .pnl .pct{font-size:11px;color:var(--red);font-weight:600;margin-top:2px}
+  /* Timeline wrap */
+  .tl-wrap{padding:28px 32px 14px;background:linear-gradient(180deg,#1a2018,#222b1f)}
+  .tl-axis{position:relative;height:160px;padding:0 4px}
+  /* Time axis base */
+  .tl-base{position:absolute;left:0;right:0;top:50%;height:2px;background:linear-gradient(90deg,transparent,var(--border) 4%,var(--border) 96%,transparent);transform:translateY(-50%)}
+  /* Hour ticks */
+  .ticks{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;justify-content:space-between;align-items:center}
+  .tick{font-size:9px;color:var(--muted);letter-spacing:.06em;font-family:'JetBrains Mono',monospace;display:flex;flex-direction:column;align-items:center;gap:2px}
+  .tick::after{content:"";width:1px;height:6px;background:var(--border)}
+  .tick.major{color:var(--text);font-weight:600}
+  .tick.major::after{height:10px;background:var(--orange)}
+  /* Marker dots */
+  .dot{position:absolute;width:18px;height:18px;border-radius:50%;transform:translate(-50%,-50%);top:50%;box-shadow:0 0 0 4px rgba(255,255,255,.05),0 0 12px currentColor;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#000;z-index:2}
+  .dot.entry{background:var(--buy);color:#000;left:18%}
+  .dot.peak{background:var(--green);color:#000;left:35%;width:14px;height:14px}
+  .dot.trough{background:var(--red);color:#000;left:68%;width:14px;height:14px}
+  .dot.exit{background:var(--sell);color:#000;left:96%;width:18px;height:18px}
+  /* Stop / target band as price axis overlay (subtle) */
+  .price-band{position:absolute;left:0;right:0;top:8px;bottom:8px;border:1px dashed rgba(255,68,68,.3);border-radius:4px;display:none}
+  /* Labels above/below dots */
+  .marker-lbl{position:absolute;transform:translateX(-50%);font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 7px;white-space:nowrap;z-index:3}
+  .marker-lbl .t{font-weight:700;color:#fff;font-family:'JetBrains Mono',monospace}
+  .marker-lbl .s{color:var(--muted);font-size:9px;display:block;margin-top:1px}
+  .marker-lbl.entry{top:calc(50% - 64px);left:18%;border-color:var(--buy);color:var(--buy)}
+  .marker-lbl.peak{top:calc(50% - 56px);left:35%;border-color:var(--green);color:var(--green)}
+  .marker-lbl.trough{top:calc(50% - 56px);left:68%;border-color:var(--red);color:var(--red)}
+  .marker-lbl.exit{top:calc(50% - 64px);left:96%;border-color:var(--sell);color:var(--sell)}
+  .marker-lbl.stop{top:calc(50% + 36px);left:0%;border-color:var(--red);color:var(--red)}
+  .marker-lbl.target{top:calc(50% + 36px);left:100%;border-color:var(--green);color:var(--green);transform:translateX(-100%)}
+  /* Connector lines from dots to lbls */
+  .marker-lbl::after{content:"";position:absolute;left:50%;width:1px;background:currentColor;opacity:.4}
+  .marker-lbl.above::after{bottom:-12px;height:12px}
+  .marker-lbl.below::after{top:-12px;height:12px}
+  /* Inline bar between entry and exit */
+  .hold-bar{position:absolute;left:18%;right:4%;top:50%;height:3px;background:linear-gradient(90deg,var(--buy),var(--sell));transform:translateY(-50%);border-radius:2px;opacity:.6}
+  /* Below the timeline: data grid */
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-top:1px solid var(--border)}
+  .cell{background:var(--surface);padding:11px 14px}
+  .cell .k{font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase}
+  .cell .v{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+  .cell .v.pos{color:var(--green)}
+  .cell .v.neg{color:var(--red)}
+  .cell .v.acc{color:var(--orange)}
+  .cell .sub{font-size:10px;color:var(--muted);margin-top:2px}
+  /* Footer */
+  .foot{padding:12px 20px;background:var(--surface2);border-top:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.55}
+  .foot b{color:var(--text);font-weight:600}
+  .foot .pill{display:inline-block;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);font-weight:700;padding:2px 6px;border:1px solid rgba(255,104,44,.4);border-radius:3px;margin-right:6px}
+</style>
+<script src="https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<!-- v2: Chart on top -->
+<div class="v2-chart-frame">
+  <div class="v2-chart-header">
+    <span class="v2-chart-title">SPY · Tue Jun 30 2026 · 5m · Long EOD scratch</span>
+    <span class="v2-chart-legend">
+      <span class="lg lg-orh">OR H 729.78</span>
+      <span class="lg lg-orl">OR L 726.86</span>
+      <span class="lg lg-stop">Stop 726.86</span>
+      <span class="lg lg-tgt">Target 738.06</span>
+      <span class="lg lg-entry">▲ Entry 729.66</span>
+      <span class="lg lg-exit">▼ Exit 729.08</span>
+    </span>
+  </div>
+  <div id="v2-chart" class="v2-chart"></div>
+  <div class="v2-chart-foot">Olive bg #1a2018 · gray-up / white-down candles · premarket (translucent white) · after-hours (translucent black) · OR lines dashed · cyan ↑ / red ↓</div>
+</div>
+
+<script>
+const bars = [
+  {time: 1782488400, open: 727.0, high: 727.5, low: 726.8, close: 727.2, volume: 1.2e6, session: 'pre'},
+  {time: 1782490200, open: 727.2, high: 727.8, low: 727.0, close: 727.5, volume: 1.4e6, session: 'pre'},
+  {time: 1782492000, open: 727.5, high: 728.0, low: 727.3, close: 727.7, volume: 1.6e6, session: 'pre'},
+  {time: 1782493800, open: 727.7, high: 728.2, low: 727.5, close: 728.0, volume: 1.8e6, session: 'pre'},
+  {time: 1782495600, open: 728.0, high: 728.5, low: 727.8, close: 728.3, volume: 2.1e6, session: 'pre'},
+  {time: 1782497400, open: 728.3, high: 729.0, low: 728.2, close: 728.9, volume: 2.5e6, session: 'pre'},
+  {time: 1782499200, open: 728.9, high: 729.5, low: 728.7, close: 729.3, volume: 3.1e6, session: 'pre'},
+  {time: 1782501000, open: 729.3, high: 729.8, low: 729.2, close: 729.6, volume: 3.7e6, session: 'pre'},
+  {time: 1782502800, open: 729.6, high: 729.78, low: 726.86, close: 727.5, volume: 4.2e6, session: 'rth'},
+  {time: 1782504600, open: 727.5, high: 729.7, low: 727.0, close: 729.66, volume: 5.1e6, session: 'rth'},
+  {time: 1782507300, open: 729.66, high: 731.5, low: 729.5, close: 731.52, volume: 6.8e6, session: 'rth'},
+  {time: 1782509100, open: 731.5, high: 732.0, low: 730.8, close: 731.0, volume: 5.4e6, session: 'rth'},
+  {time: 1782510900, open: 731.0, high: 731.2, low: 729.0, close: 729.2, volume: 4.9e6, session: 'rth'},
+  {time: 1782512700, open: 729.2, high: 729.5, low: 727.5, close: 727.7, volume: 4.2e6, session: 'rth'},
+  {time: 1782514500, open: 727.7, high: 728.5, low: 727.0, close: 728.4, volume: 3.7e6, session: 'rth'},
+  {time: 1782516300, open: 728.4, high: 729.0, low: 727.8, close: 728.8, volume: 3.1e6, session: 'rth'},
+  {time: 1782518100, open: 728.8, high: 729.2, low: 728.0, close: 728.2, volume: 2.8e6, session: 'rth'},
+  {time: 1782519900, open: 728.2, high: 728.6, low: 727.5, close: 727.6, volume: 2.4e6, session: 'rth'},
+  {time: 1782521700, open: 727.6, high: 728.0, low: 726.86, close: 727.0, volume: 2.1e6, session: 'rth'},
+  {time: 1782523500, open: 727.0, high: 727.5, low: 726.5, close: 726.6, volume: 2.4e6, session: 'rth'},
+  {time: 1782525300, open: 726.6, high: 727.0, low: 725.5, close: 725.8, volume: 2.9e6, session: 'rth'},
+  {time: 1782527100, open: 725.8, high: 727.5, low: 725.5, close: 727.4, volume: 3.5e6, session: 'rth'},
+  {time: 1782528900, open: 727.4, high: 728.5, low: 727.2, close: 728.4, volume: 4.0e6, session: 'rth'},
+  {time: 1782530700, open: 728.4, high: 729.4, low: 728.2, close: 729.2, volume: 4.6e6, session: 'rth'},
+  {time: 1782531900, open: 729.2, high: 729.5, low: 728.9, close: 729.08, volume: 5.3e6, session: 'rth'},
+  {time: 1782533400, open: 729.1, high: 729.3, low: 728.8, close: 729.0, volume: 1.5e6, session: 'post'},
+  {time: 1782535200, open: 729.0, high: 729.2, low: 728.7, close: 728.8, volume: 1.2e6, session: 'post'},
+  {time: 1782537000, open: 728.8, high: 729.0, low: 728.5, close: 728.6, volume: 9.5e5, session: 'post'},
+  {time: 1782538800, open: 728.6, high: 728.9, low: 728.4, close: 728.5, volume: 7.8e5, session: 'post'},
+  {time: 1782540600, open: 728.5, high: 728.7, low: 728.3, close: 728.4, volume: 6.2e5, session: 'post'},
+  {time: 1782542400, open: 728.4, high: 728.6, low: 728.2, close: 728.3, volume: 4.9e5, session: 'post'},
+  {time: 1782544200, open: 728.3, high: 728.5, low: 728.1, close: 728.2, volume: 3.8e5, session: 'post'},
+  {time: 1782546000, open: 728.2, high: 728.4, low: 728.0, close: 728.1, volume: 2.9e5, session: 'post'},
+];
+const TRADE = {
+  entry_ts: 1782507300, exit_ts: 1782531900,
+  entry: 729.66, exit: 729.08,
+  stop: 726.86, target: 738.06,
+  or_high: 729.78, or_low: 726.86,
+};
+(function renderV2Chart() {
+  const container = document.getElementById('v2-chart');
+  if (!container) return;
+  const { createChart, CandlestickSeries, HistogramSeries, LineStyle } = LightweightCharts;
+  const chart = createChart(container, {
+    autoSize: true,
+    layout: { background: { type: 'solid', color: '#1a2018' }, textColor: '#7a8595', fontSize: 10 },
+    grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+    rightPriceScale: { borderColor: '#333', scaleMargins: { top: 0.08, bottom: 0.22 } },
+    timeScale: { borderColor: '#333', timeVisible: true, secondsVisible: false, rightOffset: 2 },
+    crosshair: { mode: 0 },
+  });
+  const candle = chart.addSeries(CandlestickSeries, {
+    upColor: '#6a6a6a', downColor: '#f0f0f0',
+    borderUpColor: '#6a6a6a', borderDownColor: '#f0f0f0',
+    wickUpColor: '#333333', wickDownColor: '#aaaaaa',
+  });
+  candle.setData(bars.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
+  const vol = chart.addSeries(HistogramSeries, {
+    priceFormat: { type: 'volume' }, priceScaleId: 'vol', color: '#333',
+  });
+  chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+  vol.setData(bars.map(b => ({
+    time: b.time, value: b.volume,
+    color: b.close >= b.open ? 'rgba(15,143,97,0.3)' : 'rgba(201,74,53,0.3)',
+  })));
+  // OR lines
+  candle.createPriceLine({ price: TRADE.or_high, color: 'rgba(34,197,94,0.5)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'OR H 729.78' });
+  candle.createPriceLine({ price: TRADE.or_low,  color: 'rgba(239,68,68,0.5)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'OR L 726.86' });
+  // Stop & Target
+  candle.createPriceLine({ price: TRADE.stop,   color: '#ff4444', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Stop 726.86' });
+  candle.createPriceLine({ price: TRADE.target, color: '#22c55e', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Target 738.06' });
+  // Entry / exit markers as separate series using line series for arrows
+  const entryMarker = chart.addSeries(LightweightCharts.SeriesType ? null : (typeof LightweightCharts === 'object' ? null : null) );
+  // Use markers plugin via createSeriesMarkers if available; otherwise inline arrow via LineSeries
+  // v5 standalone: markers via createSeriesMarkers
+  if (typeof LightweightCharts.createSeriesMarkers === 'function') {
+    LightweightCharts.createSeriesMarkers(candle, [
+      { time: TRADE.entry_ts, position: 'belowBar', color: '#00bfff', shape: 'arrowUp', text: 'Entry 729.66 @ 09:45' },
+      { time: TRADE.exit_ts,  position: 'aboveBar', color: '#ff4444', shape: 'arrowDown', text: 'Exit 729.08 @ 15:55' },
+    ]);
+  } else {
+    // Fallback: tag via setMarkers / series markers accessor
+    try {
+      candle.setMarkers && candle.setMarkers([
+        { time: TRADE.entry_ts, position: 'belowBar', color: '#00bfff', shape: 'arrowUp', text: 'Entry 729.66' },
+        { time: TRADE.exit_ts,  position: 'aboveBar', color: '#ff4444', shape: 'arrowDown', text: 'Exit 729.08' },
+      ]);
+    } catch (e) {}
+  }
+  // Session overlays (premarket / after-hours translucent washes)
+  const pmBars = bars.filter(b => b.session === 'pre');
+  const postBars = bars.filter(b => b.session === 'post');
+  let pmOverlay = null, postOverlay = null;
+  if (pmBars.length >= 2) {
+    pmOverlay = document.createElement('div');
+    pmOverlay.style.cssText = 'position:absolute;top:0;bottom:0;background:rgba(255,255,255,0.08);pointer-events:none;z-index:1;display:none;';
+    container.appendChild(pmOverlay);
+  }
+  if (postBars.length >= 2) {
+    postOverlay = document.createElement('div');
+    postOverlay.style.cssText = 'position:absolute;top:0;bottom:0;background:rgba(0,0,0,0.30);pointer-events:none;z-index:1;display:none;';
+    container.appendChild(postOverlay);
+  }
+  function measureBarWidth(bs) {
+    if (bs.length < 2) return 0;
+    const t1 = chart.timeScale().timeToCoordinate(bs[0].time);
+    const t2 = chart.timeScale().timeToCoordinate(bs[1].time);
+    if (t1 == null || t2 == null) return 0;
+    return Math.abs(t2 - t1);
+  }
+  function positionOverlay(overlay, bs) {
+    if (!overlay || bs.length < 2) { if (overlay) overlay.style.display = 'none'; return; }
+    const firstX = chart.timeScale().timeToCoordinate(bs[0].time);
+    const lastX = chart.timeScale().timeToCoordinate(bs[bs.length - 1].time);
+    if (firstX == null || lastX == null) { overlay.style.display = 'none'; return; }
+    const w = Math.max(0, lastX + measureBarWidth(bs) - firstX);
+    if (w === 0) { overlay.style.display = 'none'; return; }
+    overlay.style.display = 'block';
+    overlay.style.left = firstX + 'px';
+    overlay.style.width = w + 'px';
+  }
+  function updateAll() {
+    positionOverlay(pmOverlay, pmBars);
+    positionOverlay(postOverlay, postBars);
+  }
+  updateAll();
+  chart.timeScale().subscribeVisibleTimeRangeChange(updateAll);
+  chart.timeScale().fitContent();
+})();
+</script>
+
+<style>
+/* v2 chart frame styles — charts depend on .v2-chart-frame being
+   position:relative so the absolutely-positioned overlays line up. */
+.v2-chart-frame{
+  width:760px;margin:0 auto 16px;background:var(--surface,#222b1f);
+  border:1px solid var(--border,#3a4632);border-radius:10px;
+  overflow:hidden;font-family:inherit;
+}
+.v2-chart-header{
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;
+  padding:8px 14px;background:linear-gradient(90deg,#161c14,#1a2018);
+  border-bottom:1px solid var(--orange,#ff682c);
+}
+.v2-chart-title{font-size:12px;font-weight:700;color:#fff;letter-spacing:.04em}
+.v2-chart-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:10px;color:var(--muted,#8a9486);font-family:ui-monospace,monospace}
+.v2-chart-legend .lg{white-space:nowrap}
+.v2-chart-legend .lg-orh{color:#22c55e}
+.v2-chart-legend .lg-orl{color:#ef4444}
+.v2-chart-legend .lg-stop{color:#ff4444}
+.v2-chart-legend .lg-tgt{color:#22c55e}
+.v2-chart-legend .lg-entry{color:#00bfff}
+.v2-chart-legend .lg-exit{color:#ff4444}
+.v2-chart{position:relative;width:100%;height:240px}
+.v2-chart-foot{padding:6px 14px;background:#0f130d;border-top:1px solid var(--border,#3a4632);font-size:10px;color:var(--muted,#7a8478);letter-spacing:.06em}
+</style>
+
+<div class="title">// Concept <b>04</b> — Horizontal Timeline &nbsp;·&nbsp; entry → peak → trough → exit on time axis &nbsp;·&nbsp; price markers</div>
+
+<div class="panel">
+  <div class="hdr">
+    <div>
+      <h1>SPY <span style="color:var(--orange)">·</span> Trade Timeline
+        <span class="meta">Tue Jun 30 2026 &nbsp;·&nbsp; 15m ORB breakout LONG</span>
+      </h1>
+    </div>
+    <div class="dir long">▲ LONG</div>
+    <div class="pnl">
+      <div class="amt neg">-$0.58</div>
+      <div class="pct">-0.08%</div>
+    </div>
+  </div>
+
+  <div class="tl-wrap">
+    <div class="tl-axis">
+      <div class="tl-base"></div>
+      <div class="hold-bar"></div>
+
+      <div class="marker-lbl entry above"><span class="t">729.66</span><span class="s">09:45 ENTRY · ORB break</span></div>
+      <div class="marker-lbl peak above"><span class="t">+1.86</span><span class="s">MFE 10:55</span></div>
+      <div class="marker-lbl trough above"><span class="t">-2.80</span><span class="s">MAE 13:40</span></div>
+      <div class="marker-lbl exit above"><span class="t">729.08</span><span class="s">15:55 EXIT · EOD</span></div>
+
+      <div class="dot entry">E</div>
+      <div class="dot peak"></div>
+      <div class="dot trough"></div>
+      <div class="dot exit">X</div>
+
+      <div class="marker-lbl stop below"><span class="t">726.86</span><span class="s">STOP (low)</span></div>
+      <div class="marker-lbl target below"><span class="t">738.06</span><span class="s">TARGET (+3R)</span></div>
+
+      <div class="ticks">
+        <div class="tick">09:30</div>
+        <div class="tick">10:00</div>
+        <div class="tick major">10:30</div>
+        <div class="tick">11:00</div>
+        <div class="tick">11:30</div>
+        <div class="tick major">12:00</div>
+        <div class="tick">12:30</div>
+        <div class="tick">13:00</div>
+        <div class="tick major">13:30</div>
+        <div class="tick">14:00</div>
+        <div class="tick">14:30</div>
+        <div class="tick major">15:00</div>
+        <div class="tick">15:30</div>
+        <div class="tick">16:00</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="cell">
+      <div class="k">R-Multiple</div>
+      <div class="v neg">-0.21R</div>
+      <div class="sub">on $2.80 stop</div>
+    </div>
+    <div class="cell">
+      <div class="k">Efficiency</div>
+      <div class="v neg">-31%</div>
+      <div class="sub">P&amp;L / MFE</div>
+    </div>
+    <div class="cell">
+      <div class="k">MFE/MAE</div>
+      <div class="v" style="color:#fff">0.66</div>
+      <div class="sub">excursion ratio</div>
+    </div>
+    <div class="cell">
+      <div class="k">Time in Trade</div>
+      <div class="v acc">6h 10m</div>
+      <div class="sub">370 minutes</div>
+    </div>
+    <div class="cell">
+      <div class="k">OR High</div>
+      <div class="v" style="color:#fff">729.78</div>
+      <div class="sub">15m range</div>
+    </div>
+    <div class="cell">
+      <div class="k">OR Low</div>
+      <div class="v" style="color:#fff">726.86</div>
+      <div class="sub">15m range</div>
+    </div>
+    <div class="cell">
+      <div class="k">Planned R:R</div>
+      <div class="v" style="color:#fff">1 : 3.0</div>
+      <div class="sub">2.80 / 8.40</div>
+    </div>
+    <div class="cell">
+      <div class="k">Exit Reason</div>
+      <div class="v acc">EOD</div>
+      <div class="sub">target/stop not hit</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span class="pill">Entry</span> ORB breakout above 15m OR high <b>$729.78</b> at 09:45 ET &nbsp;·&nbsp;
+    <span class="pill">Path</span> reached <b>+1.86</b> MFE at 10:55, drew to <b>-2.80</b> MAE at 13:40, never reclaimed &nbsp;·&nbsp;
+    <span class="pill">Exit</span> closed at <b>$729.08</b> at 15:55 EOD for <b>-0.21R</b>.
+  </div>
+</div>
+</body>
+</html>

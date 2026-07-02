@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DAS marker concepts · triangles &amp; diamonds</title>
+    <style>
+      :root {
+        --paper: #f4f1ea;
+        --ink: #202020;
+        --muted: #74706a;
+        --line: #d7d0c3;
+        --panel: #fffdf8;
+        --orange: #ff682c;
+        --green: #0f8f61;
+        --red: #c94a35;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        padding: 32px;
+      }
+      main { max-width: 1100px; margin: 0 auto; display: grid; gap: 28px; }
+      header h1 { margin: 0 0 4px; font-size: clamp(28px, 4vw, 44px); letter-spacing: -0.04em; }
+      header .kicker { margin: 0 0 8px; color: var(--orange); font-weight: 750; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; }
+      header p { color: var(--muted); max-width: 740px; margin: 8px 0 0; }
+      .back { color: var(--orange); text-decoration: none; font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 22px;
+        box-shadow: 0 12px 28px rgba(32, 32, 32, 0.06);
+      }
+      h2 { margin: 0 0 4px; font-size: 22px; letter-spacing: -0.02em; }
+      h2 small { display: block; color: var(--muted); font-weight: 400; font-size: 12px; letter-spacing: .02em; margin-top: 2px; }
+      .grid {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+      }
+      .card {
+        background: #1a1a1a;
+        border-radius: 12px;
+        padding: 14px;
+        color: #e8e8e8;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        border: 1px solid #2a2a2a;
+      }
+      .card .name { font-weight: 700; font-size: 13px; }
+      .card .swatch {
+        height: 88px;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        border-radius: 8px;
+        background: #0e0e0e;
+      }
+      .legend {
+        display: flex;
+        gap: 12px;
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 12px;
+      }
+      .legend span::before {
+        content: '';
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        margin-right: 4px;
+        vertical-align: middle;
+      }
+      .legend .bu::before { background: var(--green); }
+      .legend .se::before { background: var(--red); }
+      svg { display: block; }
+      .swatch svg { width: 32px; height: 32px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="kicker">DAS execution marker concepts</p>
+        <h1>10 triangles · 10 diamonds</h1>
+        <p>Pick the concept that best matches how you want executions to read on the bar. Each card shows the BUY (green) and SELL (red) variant. Nothing below is wired into the chart yet — concept sheet only.</p>
+        <p style="margin-top:12px;"><a class="back" href="/">← Back to chart</a></p>
+      </header>
+
+      <section>
+        <h2>Triangle concepts <small>for buy (▲ green) and sell (▼ red) executions</small></h2>
+        <div class="legend"><span class="bu">Buy</span><span class="se">Sell</span></div>
+        <div class="grid" id="triangle-grid"></div>
+      </section>
+
+      <section>
+        <h2>Diamond concepts <small>for buy (◆ green) and sell (◆ red) executions</small></h2>
+        <div class="legend"><span class="bu">Buy</span><span class="se">Sell</span></div>
+        <div class="grid" id="diamond-grid"></div>
+      </section>
+    </main>
+
+    <script>
+      const BUY = '#0f8f61';
+      const SELL = '#c94a35';
+      const STROKE = '#0a0a0a';
+
+      const triangleConcepts = [
+        { id: 'T1', name: 'T1 · Solid equilateral', buy: `<polygon points="16,4 28,28 4,28" fill="${BUY}" stroke="${STROKE}" stroke-width="1"/>`,
+          sell: `<polygon points="4,4 28,4 16,28" fill="${SELL}" stroke="${STROKE}" stroke-width="1"/>` },
+        { id: 'T2', name: 'T2 · Outlined', buy: `<polygon points="16,4 28,28 4,28" fill="${BUY}" stroke="${STROKE}" stroke-width="2"/>`,
+          sell: `<polygon points="4,4 28,4 16,28" fill="${SELL}" stroke="${STROKE}" stroke-width="2"/>` },
+        { id: 'T3', name: 'T3 · Hollow', buy: `<polygon points="16,4 28,28 4,28" fill="none" stroke="${BUY}" stroke-width="2.5"/>`,
+          sell: `<polygon points="4,4 28,4 16,28" fill="none" stroke="${SELL}" stroke-width="2.5"/>` },
+        { id: 'T4', name: 'T4 · Wider base', buy: `<polygon points="16,2 30,28 2,28" fill="${BUY}"/>`,
+          sell: `<polygon points="2,2 30,2 16,28" fill="${SELL}"/>` },
+        { id: 'T5', name: 'T5 · Tall narrow', buy: `<polygon points="16,2 24,28 8,28" fill="${BUY}"/>`,
+          sell: `<polygon points="8,2 24,2 16,28" fill="${SELL}"/>` },
+        { id: 'T6', name: 'T6 · Rounded corners', buy: `<polygon points="16,4 28,28 4,28" fill="${BUY}" stroke="${STROKE}" stroke-width="1.2" stroke-linejoin="round"/>`,
+          sell: `<polygon points="4,4 28,4 16,28" fill="${SELL}" stroke="${STROKE}" stroke-width="1.2" stroke-linejoin="round"/>` },
+        { id: 'T7', name: 'T7 · Filled + halo', buy: `<polygon points="16,4 28,28 4,28" fill="none" stroke="${BUY}" stroke-width="6" stroke-linejoin="round"/><polygon points="16,4 28,28 4,28" fill="${BUY}" stroke="${STROKE}" stroke-width="1"/>`,
+          sell: `<polygon points="4,4 28,4 16,28" fill="none" stroke="${SELL}" stroke-width="6" stroke-linejoin="round"/><polygon points="4,4 28,4 16,28" fill="${SELL}" stroke="${STROKE}" stroke-width="1"/>` },
+        { id: 'T8', name: 'T8 · Inset triangle', buy: `<polygon points="16,8 24,24 8,24" fill="${BUY}" stroke="#0a0a0a" stroke-width="1"/>`,
+          sell: `<polygon points="8,8 24,8 16,24" fill="${SELL}" stroke="#0a0a0a" stroke-width="1"/>` },
+        { id: 'T9', name: 'T9 · Thick arrow triangle', buy: `<path d="M16,3 L29,28 L3,28 Z" fill="${BUY}" stroke="${STROKE}" stroke-width="2"/>`,
+          sell: `<path d="M3,3 L29,3 L16,28 Z" fill="${SELL}" stroke="${STROKE}" stroke-width="2"/>` },
+        { id: 'T10', name: 'T10 · Outlined + dot', buy: `<polygon points="16,4 28,28 4,28" fill="none" stroke="${BUY}" stroke-width="2.5"/><circle cx="16" cy="18" r="2.5" fill="${BUY}"/>`,
+          sell: `<polygon points="4,4 28,4 16,28" fill="none" stroke="${SELL}" stroke-width="2.5"/><circle cx="16" cy="14" r="2.5" fill="${SELL}"/>` },
+      ];
+
+      const diamondConcepts = [
+        { id: 'D1', name: 'D1 · Solid square diamond', buy: `<polygon points="16,3 29,16 16,29 3,16" fill="${BUY}" stroke="${STROKE}" stroke-width="1"/>`,
+          sell: `<polygon points="16,3 29,16 16,29 3,16" fill="${SELL}" stroke="${STROKE}" stroke-width="1"/>` },
+        { id: 'D2', name: 'D2 · Outlined', buy: `<polygon points="16,3 29,16 16,29 3,16" fill="none" stroke="${BUY}" stroke-width="2.5"/>`,
+          sell: `<polygon points="16,3 29,16 16,29 3,16" fill="none" stroke="${SELL}" stroke-width="2.5"/>` },
+        { id: 'D3', name: 'D3 · Thin tall', buy: `<polygon points="16,2 22,16 16,30 10,16" fill="${BUY}"/>`,
+          sell: `<polygon points="16,2 22,16 16,30 10,16" fill="${SELL}"/>` },
+        { id: 'D4', name: 'D4 · Wide squat', buy: `<polygon points="16,5 29,16 16,27 3,16" fill="${BUY}"/>`,
+          sell: `<polygon points="16,5 29,16 16,27 3,16" fill="${SELL}"/>` },
+        { id: 'D5', name: 'D5 · Rounded diamond', buy: `<polygon points="16,3 29,16 16,29 3,16" fill="${BUY}" stroke="${STROKE}" stroke-width="1" stroke-linejoin="round"/>`,
+          sell: `<polygon points="16,3 29,16 16,29 3,16" fill="${SELL}" stroke="${STROKE}" stroke-width="1" stroke-linejoin="round"/>` },
+        { id: 'D6', name: 'D6 · Diamond + halo', buy: `<polygon points="16,3 29,16 16,29 3,16" fill="none" stroke="${BUY}" stroke-width="6" stroke-linejoin="round"/><polygon points="16,3 29,16 16,29 3,16" fill="${BUY}" stroke="${STROKE}" stroke-width="1"/>`,
+          sell: `<polygon points="16,3 29,16 16,29 3,16" fill="none" stroke="${SELL}" stroke-width="6" stroke-linejoin="round"/><polygon points="16,3 29,16 16,29 3,16" fill="${SELL}" stroke="${STROKE}" stroke-width="1"/>` },
+        { id: 'D7', name: 'D7 · Half-fill top', buy: `<polygon points="16,3 29,16 16,29 3,16" fill="${BUY}"/><polygon points="16,3 29,16 3,16" fill="#0a0a0a" opacity=".35"/>`,
+          sell: `<polygon points="16,3 29,16 16,29 3,16" fill="${SELL}"/><polygon points="16,3 29,16 3,16" fill="#0a0a0a" opacity=".35"/>` },
+        { id: 'D8', name: 'D8 · Inset diamond', buy: `<polygon points="16,8 24,16 16,24 8,16" fill="${BUY}" stroke="#0a0a0a" stroke-width="1"/>`,
+          sell: `<polygon points="16,8 24,16 16,24 8,16" fill="${SELL}" stroke="#0a0a0a" stroke-width="1"/>` },
+        { id: 'D9', name: 'D9 · Outlined + center dot', buy: `<polygon points="16,3 29,16 16,29 3,16" fill="none" stroke="${BUY}" stroke-width="2.5"/><circle cx="16" cy="16" r="2.5" fill="${BUY}"/>`,
+          sell: `<polygon points="16,3 29,16 16,29 3,16" fill="none" stroke="${SELL}" stroke-width="2.5"/><circle cx="16" cy="16" r="2.5" fill="${SELL}"/>` },
+        { id: 'D10', name: 'D10 · Heavy outline', buy: `<polygon points="16,3 29,16 16,29 3,16" fill="${BUY}" stroke="${STROKE}" stroke-width="3"/>`,
+          sell: `<polygon points="16,3 29,16 16,29 3,16" fill="${SELL}" stroke="${STROKE}" stroke-width="3"/>` },
+      ];
+
+      function renderGrid(target, list) {
+        const node = document.getElementById(target);
+        node.innerHTML = list.map(c => `
+          <div class="card">
+            <div class="name">${c.name}</div>
+            <div class="swatch">
+              <svg viewBox="0 0 32 32" aria-label="buy">${c.buy}</svg>
+              <svg viewBox="0 0 32 32" aria-label="sell">${c.sell}</svg>
+            </div>
+          </div>`).join('');
+      }
+      renderGrid('triangle-grid', triangleConcepts);
+      renderGrid('diamond-grid', diamondConcepts);
+    </script>
+  </body>
+</html>

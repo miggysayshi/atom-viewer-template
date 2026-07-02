@@ -1,0 +1,201 @@
+<!-- Concept 09: Risk/Reward Gauge — visual gauge stop vs entry vs target with current price marker -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Concept 09 — Risk/Reward Gauge</title>
+<style>
+  :root{
+    --bg:#1a2018;
+    --surface:#222b1f;
+    --surface2:#1c2418;
+    --border:#3a4632;
+    --text:#e8e8e8;
+    --muted:#8a9486;
+    --dim:#5e6657;
+    --orange:#ff682c;
+    --buy:#00bfff;
+    --sell:#ff4444;
+    --green:#22c55e;
+    --red:#ef4444;
+    --yellow:#eab308;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(ellipse at center top,#222b1f 0%,#1a2018 50%,#141a12 100%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,sans-serif;padding:24px;min-height:100vh}
+  .title{width:760px;margin:0 auto 8px;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+  .title b{color:var(--orange)}
+  .panel{width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  /* Header */
+  .hdr{display:grid;grid-template-columns:1fr auto auto;gap:18px;align-items:center;padding:14px 20px;background:linear-gradient(135deg,#1c2418,#222b1f);border-bottom:1px solid var(--border)}
+  .hdr h1{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .hdr h1 .sub{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:3px;letter-spacing:.06em}
+  .dir{font-size:11px;font-weight:800;letter-spacing:.14em;padding:6px 14px;border-radius:6px}
+  .dir.long{color:var(--buy);background:rgba(0,191,255,.1);border:1px solid rgba(0,191,255,.3)}
+  .pnl{text-align:right}
+  .pnl .amt{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .pnl .amt.neg{color:var(--red)}
+  .pnl .pct{font-size:11px;color:var(--red);font-weight:600;margin-top:2px}
+  /* Gauge */
+  .gauge{padding:24px 24px 18px;background:linear-gradient(180deg,#1a2018,#222b1f);position:relative}
+  .gauge h2{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:18px}
+  .gauge h2 b{color:var(--orange)}
+  /* Horizontal price ruler */
+  .ruler{position:relative;height:140px;margin:0 8px}
+  .ruler .track{position:absolute;left:0;right:0;top:42px;height:14px;border-radius:7px;background:linear-gradient(90deg,#ef4444 0%,#ef4444 25%,#5e6657 33%,#222b1f 33%,#222b1f 50%,#5e6657 67%,#22c55e 67%,#22c55e 100%);border:1px solid var(--border)}
+  .ruler .zone-stop{position:absolute;left:0;right:67%;top:38px;height:22px;background:rgba(239,68,68,0.08);border:1px dashed rgba(239,68,68,0.4);border-radius:4px}
+  .ruler .zone-target{position:absolute;left:67%;right:0;top:38px;height:22px;background:rgba(34,197,94,0.08);border:1px dashed rgba(34,197,94,0.4);border-radius:4px}
+  .ruler .zone-actual{position:absolute;left:67%;right:32%;top:38px;height:22px;background:rgba(255,104,44,0.18);border-top:1px solid var(--orange);border-bottom:1px solid var(--orange)}
+  /* Price markers as notches */
+  .ruler .tick{position:absolute;top:24px;width:2px;height:8px;background:var(--muted);transform:translateX(-50%)}
+  .ruler .tick.major{height:12px;background:#fff;top:20px}
+  .ruler .tick-lbl{position:absolute;top:8px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);transform:translateX(-50%);white-space:nowrap}
+  /* Pins (stop, entry, target, actual) */
+  .ruler .pin{position:absolute;top:62px;width:2px;height:60px;transform:translateX(-50%)}
+  .ruler .pin::before{content:"";position:absolute;left:50%;transform:translateX(-50%);width:14px;height:14px;border-radius:50%;background:currentColor;top:-6px;box-shadow:0 0 0 4px var(--surface),0 0 0 5px currentColor,0 0 10px currentColor}
+  .ruler .pin .lbl{position:absolute;left:50%;top:18px;transform:translateX(-50%);background:var(--surface);border:1px solid currentColor;color:#fff;padding:3px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;white-space:nowrap}
+  .ruler .pin .lbl small{display:block;font-size:8px;color:var(--muted);font-weight:500;letter-spacing:.1em;text-transform:uppercase;margin-top:1px}
+  .ruler .pin.stop{left:0%;color:var(--red)}
+  .ruler .pin.target{left:100%;color:var(--green)}
+  .ruler .pin.entry{left:25%;color:var(--buy)}
+  .ruler .pin.actual{left:30.5%;color:var(--orange);height:80px;z-index:2}
+  .ruler .pin.actual::before{width:18px;height:18px;top:-8px}
+  /* Connection labels on bottom */
+  .ruler .dim-line{position:absolute;left:0;right:0;top:128px;height:1px;background:linear-gradient(90deg,transparent,var(--border) 5%,var(--border) 95%,transparent)}
+  .ruler .dim-stop{position:absolute;left:0;width:25%;top:130px;text-align:center}
+  .ruler .dim-target{position:absolute;left:75%;width:25%;top:130px;text-align:center}
+  .ruler .dim-stop .v{font-size:14px;font-weight:700;color:var(--red);font-family:'JetBrains Mono',monospace}
+  .ruler .dim-stop .k{font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+  .ruler .dim-target .v{font-size:14px;font-weight:700;color:var(--green);font-family:'JetBrains Mono',monospace}
+  .ruler .dim-target .k{font-size:9px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+  /* Stats below gauge */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-top:1px solid var(--border)}
+  .stat{background:var(--surface);padding:12px 16px}
+  .stat .k{font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;font-weight:600}
+  .stat .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:3px;line-height:1}
+  .stat .v.pos{color:var(--green)}
+  .stat .v.neg{color:var(--red)}
+  .stat .v.acc{color:var(--orange)}
+  .stat .v.buy-c{color:var(--buy)}
+  .stat .v.sell-c{color:var(--sell)}
+  .stat .sub{font-size:10px;color:var(--muted);margin-top:3px}
+  /* Mini checklist */
+  .check{padding:14px 20px;background:var(--surface2);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(3,1fr);gap:18px;font-size:11px}
+  .check .it{display:flex;gap:10px;align-items:flex-start}
+  .check .ic{width:22px;height:22px;border-radius:5px;background:rgba(255,104,44,.15);color:var(--orange);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0}
+  .check .ic.ok{background:rgba(34,197,94,.15);color:var(--green)}
+  .check .ic.warn{background:rgba(234,179,8,.15);color:var(--yellow)}
+  .check .ic.bad{background:rgba(239,68,68,.15);color:var(--red)}
+  .check .lbl b{color:#fff;font-weight:700;display:block;font-size:12px;margin-bottom:1px}
+  .check .lbl{color:var(--muted);line-height:1.4}
+  /* Footer */
+  .foot{padding:12px 20px;background:var(--surface2);border-top:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.5}
+  .foot b{color:var(--text);font-weight:600}
+  .foot code{font-family:'JetBrains Mono',monospace;color:#fff;background:rgba(255,255,255,.04);padding:1px 5px;border-radius:3px;font-size:10.5px}
+</style>
+</head>
+<body>
+<div class="title">// Concept <b>09</b> — Risk/Reward Gauge &nbsp;·&nbsp; horizontal price ruler &nbsp;·&nbsp; stop→entry→actual→target &nbsp;·&nbsp; visual</div>
+
+<div class="panel">
+  <div class="hdr">
+    <h1>SPY <span style="color:var(--orange)">·</span> Risk / Reward Gauge
+      <span class="sub">Tue Jun 30 2026 &nbsp;·&nbsp; 15m ORB · LONG</span>
+    </h1>
+    <div class="dir long">▲ LONG</div>
+    <div class="pnl">
+      <div class="amt neg">-$0.58</div>
+      <div class="pct">-0.0795%</div>
+    </div>
+  </div>
+
+  <div class="gauge">
+    <h2>Price Ladder &nbsp;·&nbsp; <b>Stop</b> → <b>Entry</b> → <b>Actual</b> → <b>Target</b></h2>
+
+    <div class="ruler">
+      <div class="zone-stop"></div>
+      <div class="zone-target"></div>
+      <div class="track"></div>
+
+      <!-- Top price labels (ruler) -->
+      <div class="tick-lbl" style="left:0%">726.86</div>
+      <div class="tick" style="left:0%"></div>
+      <div class="tick-lbl" style="left:25%">729.66</div>
+      <div class="tick" style="left:25%"></div>
+      <div class="tick-lbl" style="left:30.5%;color:var(--orange)">729.08</div>
+      <div class="tick major" style="left:30.5%;background:var(--orange)"></div>
+      <div class="tick-lbl" style="left:50%;color:var(--muted)">mid 732.46</div>
+      <div class="tick" style="left:50%"></div>
+      <div class="tick-lbl" style="left:100%">738.06</div>
+      <div class="tick" style="left:100%"></div>
+
+      <!-- Pins -->
+      <div class="pin stop">
+        <div class="lbl">STOP<small>726.86</small></div>
+      </div>
+      <div class="pin entry">
+        <div class="lbl">ENTRY<small>729.66 · 09:45</small></div>
+      </div>
+      <div class="pin actual">
+        <div class="lbl">ACTUAL<small>729.08 · 15:55</small></div>
+      </div>
+      <div class="pin target">
+        <div class="lbl">TARGET<small>738.06</small></div>
+      </div>
+
+      <!-- Distance dim line -->
+      <div class="dim-line"></div>
+      <div class="dim-stop">
+        <div class="v">2.80</div>
+        <div class="k">Risk (pts)</div>
+      </div>
+      <div class="dim-target">
+        <div class="v">8.40</div>
+        <div class="k">Reward (pts)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="k">R-Multiple</div>
+      <div class="v neg">-0.21R</div>
+      <div class="sub">lost 0.21× risk</div>
+    </div>
+    <div class="stat">
+      <div class="k">Fill Distance</div>
+      <div class="v" style="color:#fff">0.58</div>
+      <div class="sub">below entry</div>
+    </div>
+    <div class="stat">
+      <div class="k">Path to Target</div>
+      <div class="v acc">93.1%</div>
+      <div class="sub">remaining</div>
+    </div>
+    <div class="stat">
+      <div class="k">Time in Trade</div>
+      <div class="v" style="color:#fff">6h 10m</div>
+      <div class="sub">09:45 → 15:55</div>
+    </div>
+  </div>
+
+  <div class="check">
+    <div class="it">
+      <div class="ic ok">✓</div>
+      <div class="lbl"><b>Setup valid</b>15m ORB broke out above $729.78 with volume</div>
+    </div>
+    <div class="it">
+      <div class="ic warn">!</div>
+      <div class="lbl"><b>Trail missed</b>MFE reached +1.66R before fading — trail to BE could have saved it</div>
+    </div>
+    <div class="it">
+      <div class="ic bad">×</div>
+      <div class="lbl"><b>Target missed</b>Closed EOD 8.98 pts short of target — momentum expired</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    Entered <code>LONG 729.66</code> on 15m ORB breakout. Stop <code>726.86</code> · Target <code>738.06</code>. Closed EOD at <code>729.08</code> for <b>-0.21R</b>.
+  </div>
+</div>
+</body>
+</html>

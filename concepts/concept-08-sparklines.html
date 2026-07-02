@@ -1,0 +1,229 @@
+<!-- Concept 08: Sparklines — MFE/MAE sparklines + price path next to each metric -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Concept 08 — Sparklines</title>
+<style>
+  :root{
+    --bg:#1a2018;
+    --surface:#222b1f;
+    --surface2:#1c2418;
+    --border:#3a4632;
+    --text:#e8e8e8;
+    --muted:#8a9486;
+    --dim:#5e6657;
+    --orange:#ff682c;
+    --buy:#00bfff;
+    --sell:#ff4444;
+    --green:#22c55e;
+    --red:#ef4444;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,sans-serif;padding:24px;min-height:100vh}
+  .title{width:760px;margin:0 auto 8px;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+  .title b{color:var(--orange)}
+  .panel{width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  /* Header */
+  .hdr{display:grid;grid-template-columns:1fr auto auto;gap:18px;align-items:center;padding:14px 20px;background:linear-gradient(135deg,#1c2418,#222b1f);border-bottom:1px solid var(--border)}
+  .hdr h1{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .hdr h1 .sub{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:3px;letter-spacing:.06em}
+  .dir{font-size:11px;font-weight:800;letter-spacing:.14em;padding:6px 14px;border-radius:6px}
+  .dir.long{color:var(--buy);background:rgba(0,191,255,.1);border:1px solid rgba(0,191,255,.3)}
+  .pnl{text-align:right}
+  .pnl .amt{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .pnl .amt.neg{color:var(--red)}
+  .pnl .pct{font-size:11px;color:var(--red);font-weight:600;margin-top:2px}
+  /* Top: featured price sparkline */
+  .feat{padding:18px 20px;background:linear-gradient(180deg,#1a2018,#222b1f);border-bottom:1px solid var(--border);display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center}
+  .feat .lbl{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:700;writing-mode:vertical-rl;transform:rotate(180deg);padding:10px 0}
+  .feat .path{position:relative;height:96px;background:linear-gradient(180deg,rgba(255,68,68,.04),rgba(0,191,255,.04));border-radius:6px;border:1px solid var(--border);overflow:hidden}
+  .feat .path .price-axis{position:absolute;right:8px;top:6px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.04em}
+  .feat .path .price-axis .max{color:var(--green);display:block}
+  .feat .path .price-axis .min{color:var(--red);display:block;margin-top:60px}
+  .feat .path .zero-line{position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(255,255,255,.08);border-top:1px dashed var(--muted)}
+  .feat .path .zero-lbl{position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:9px;color:var(--muted);background:var(--surface);padding:0 4px}
+  .feat .stats{text-align:right;font-family:'JetBrains Mono',monospace}
+  .feat .stats .big{font-size:28px;font-weight:800;color:var(--red);line-height:1}
+  .feat .stats .big .r{font-size:14px;margin-left:2px;color:var(--red)}
+  .feat .stats .sub{font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:.06em}
+  /* Metric rows */
+  .rows{padding:0}
+  .row{display:grid;grid-template-columns:130px 1fr 110px 90px;gap:16px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--border);transition:background .15s}
+  .row:hover{background:rgba(255,255,255,.02)}
+  .row:last-child{border-bottom:0}
+  .row .label{font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+  .row .label b{color:#fff;font-weight:700;display:block;font-size:11px;letter-spacing:.04em;text-transform:none;margin-top:2px}
+  .row .label small{display:block;font-size:9px;color:var(--dim);font-weight:500;letter-spacing:.06em;margin-top:2px}
+  .row .spark{height:38px;position:relative}
+  .row .spark .baseline{position:absolute;left:0;right:0;top:50%;height:1px;background:var(--border)}
+  .row .spark svg{display:block;width:100%;height:100%}
+  .row .val{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+  .row .val.pos{color:var(--green)}
+  .row .val.neg{color:var(--red)}
+  .row .val.acc{color:var(--orange)}
+  .row .delta{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);text-align:right;letter-spacing:.04em}
+  .row .delta b{font-weight:700}
+  .row .delta .pos{color:var(--green)}
+  .row .delta .neg{color:var(--red)}
+  /* Footer */
+  .foot{padding:12px 20px;background:var(--surface2);border-top:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.5;display:flex;gap:18px;flex-wrap:wrap}
+  .foot b{color:var(--text);font-weight:600}
+  .foot .tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);font-weight:700;margin-right:4px}
+</style>
+</head>
+<body>
+<div class="title">// Concept <b>08</b> — Sparklines &nbsp;·&nbsp; mini SVG paths next to metrics &nbsp;·&nbsp; price featured on top &nbsp;·&nbsp; data-rich</div>
+
+<div class="panel">
+  <div class="hdr">
+    <h1>SPY <span style="color:var(--orange)">·</span> ORB Trade
+      <span class="sub">Tue Jun 30 2026 &nbsp;·&nbsp; 15m ORB breakout LONG</span>
+    </h1>
+    <div class="dir long">▲ LONG</div>
+    <div class="pnl">
+      <div class="amt neg">-$0.58</div>
+      <div class="pct">-0.0795%</div>
+    </div>
+  </div>
+
+  <!-- FEATURED PRICE PATH -->
+  <div class="feat">
+    <div class="lbl">Price Path · 09:30→16:00</div>
+    <div class="path">
+      <svg viewBox="0 0 600 96" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+        <!-- OR band (first 15min) -->
+        <rect x="0" y="30" width="60" height="48" fill="rgba(255,255,255,0.04)"/>
+        <line x1="60" y1="30" x2="60" y2="78" stroke="#3a4632" stroke-width="1" stroke-dasharray="2,2"/>
+        <!-- OR high (729.78) and low (726.86) as dashed lines -->
+        <line x1="60" y1="32" x2="600" y2="32" stroke="#8a9486" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.5"/>
+        <line x1="60" y1="76" x2="600" y2="76" stroke="#8a9486" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.5"/>
+        <!-- Price path: opens, OR forms, breaks out, fades -->
+        <path d="M 5,55 L 20,52 L 35,50 L 50,42 L 60,38 L 75,28 L 90,32 L 110,38 L 130,35 L 155,40 L 180,30 L 200,45 L 220,55 L 245,48 L 270,52 L 295,58 L 320,65 L 350,72 L 380,68 L 410,70 L 440,74 L 470,72 L 500,70 L 530,72 L 560,74 L 590,75"
+              fill="none" stroke="#00bfff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+        <!-- Filled area under path -->
+        <path d="M 5,55 L 20,52 L 35,50 L 50,42 L 60,38 L 75,28 L 90,32 L 110,38 L 130,35 L 155,40 L 180,30 L 200,45 L 220,55 L 245,48 L 270,52 L 295,58 L 320,65 L 350,72 L 380,68 L 410,70 L 440,74 L 470,72 L 500,70 L 530,72 L 560,74 L 590,75 L 590,90 L 5,90 Z"
+              fill="url(#g1)" opacity="0.4"/>
+        <defs>
+          <linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#00bfff" stop-opacity="0.5"/>
+            <stop offset="100%" stop-color="#00bfff" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <!-- Entry marker -->
+        <circle cx="75" cy="28" r="3.5" fill="#00bfff" stroke="#0a0c08" stroke-width="1.5"/>
+        <text x="82" y="22" font-family="JetBrains Mono,monospace" font-size="9" fill="#00bfff">E 729.66</text>
+        <!-- Exit marker -->
+        <circle cx="590" cy="75" r="3.5" fill="#ff4444" stroke="#0a0c08" stroke-width="1.5"/>
+        <text x="540" y="89" font-family="JetBrains Mono,monospace" font-size="9" fill="#ff4444">X 729.08 EOD</text>
+        <!-- MFE peak marker -->
+        <circle cx="180" cy="30" r="2.5" fill="#22c55e"/>
+        <!-- MAE trough marker -->
+        <circle cx="350" cy="72" r="2.5" fill="#ef4444"/>
+      </svg>
+      <div class="price-axis">
+        <span class="max">H 729.78</span>
+        <span class="min">L 726.86</span>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="big">-0.21<span class="r">R</span></div>
+      <div class="sub">SPY · -$0.58 · -0.08%</div>
+    </div>
+  </div>
+
+  <!-- METRIC ROWS WITH SPARKLINES -->
+  <div class="rows">
+
+    <div class="row">
+      <div class="label">MFE<small>max favorable</small></div>
+      <div class="spark">
+        <div class="baseline"></div>
+        <svg viewBox="0 0 200 38" preserveAspectRatio="none">
+          <path d="M 0,32 L 15,28 L 30,24 L 45,18 L 60,12 L 80,15 L 100,22 L 125,28 L 150,32 L 180,32 L 200,32"
+                fill="none" stroke="#22c55e" stroke-width="1.5"/>
+          <circle cx="60" cy="12" r="2.5" fill="#22c55e"/>
+        </svg>
+      </div>
+      <div class="val pos">+1.86</div>
+      <div class="delta"><span class="pos">▲ peak</span><br>10:55</div>
+    </div>
+
+    <div class="row">
+      <div class="label">MAE<small>max adverse</small></div>
+      <div class="spark">
+        <div class="baseline"></div>
+        <svg viewBox="0 0 200 38" preserveAspectRatio="none">
+          <path d="M 0,18 L 20,18 L 40,20 L 60,22 L 80,24 L 100,28 L 130,33 L 150,36 L 175,35 L 200,34"
+                fill="none" stroke="#ef4444" stroke-width="1.5"/>
+          <circle cx="150" cy="36" r="2.5" fill="#ef4444"/>
+        </svg>
+      </div>
+      <div class="val neg">-2.80</div>
+      <div class="delta"><span class="neg">▼ trough</span><br>13:40</div>
+    </div>
+
+    <div class="row">
+      <div class="label">Efficiency<small>pnl / mfe</small></div>
+      <div class="spark">
+        <div class="baseline"></div>
+        <svg viewBox="0 0 200 38" preserveAspectRatio="none">
+          <rect x="0" y="0" width="200" height="38" fill="rgba(255,68,68,0.06)"/>
+          <rect x="0" y="0" width="62" height="38" fill="rgba(255,68,68,0.2)"/>
+          <line x1="0" y1="32" x2="200" y2="32" stroke="#3a4632" stroke-dasharray="2,2"/>
+          <text x="6" y="14" font-family="JetBrains Mono,monospace" font-size="9" fill="#ef4444">P&amp;L</text>
+          <text x="6" y="26" font-family="JetBrains Mono,monospace" font-size="9" fill="#8a9486">vs MFE</text>
+        </svg>
+      </div>
+      <div class="val neg">-31%</div>
+      <div class="delta"><b>0.66</b><br>MFE/MAE</div>
+    </div>
+
+    <div class="row">
+      <div class="label">Planned R:R<small>stop vs target</small></div>
+      <div class="spark">
+        <div class="baseline"></div>
+        <svg viewBox="0 0 200 38" preserveAspectRatio="none">
+          <!-- stop bar -->
+          <rect x="0" y="14" width="30" height="10" fill="#ef4444" opacity="0.6"/>
+          <text x="2" y="11" font-family="JetBrains Mono,monospace" font-size="8" fill="#ef4444">2.80</text>
+          <!-- target bar -->
+          <rect x="35" y="6" width="90" height="26" fill="#22c55e" opacity="0.6"/>
+          <text x="40" y="5" font-family="JetBrains Mono,monospace" font-size="8" fill="#22c55e">8.40</text>
+          <!-- achieved portion -->
+          <rect x="35" y="20" width="20" height="12" fill="rgba(255,104,44,0.8)"/>
+          <text x="155" y="22" font-family="JetBrains Mono,monospace" font-size="9" fill="#ff682c" font-weight="700">+0.66R</text>
+        </svg>
+      </div>
+      <div class="val acc">1 : 3.0</div>
+      <div class="delta">plan / actual<br><b>0.21R achieved</b></div>
+    </div>
+
+    <div class="row">
+      <div class="label">OR Range<small>15-min opening</small></div>
+      <div class="spark">
+        <div class="baseline"></div>
+        <svg viewBox="0 0 200 38" preserveAspectRatio="none">
+          <rect x="0" y="8" width="200" height="22" fill="rgba(255,255,255,0.04)"/>
+          <rect x="20" y="14" width="160" height="10" fill="rgba(255,255,255,0.15)"/>
+          <line x1="20" y1="14" x2="20" y2="24" stroke="#3a4632"/>
+          <line x1="180" y1="14" x2="180" y2="24" stroke="#3a4632"/>
+          <text x="0" y="7" font-family="JetBrains Mono,monospace" font-size="8" fill="#8a9486">L 726.86</text>
+          <text x="155" y="7" font-family="JetBrains Mono,monospace" font-size="8" fill="#8a9486">729.78 H</text>
+          <text x="0" y="35" font-family="JetBrains Mono,monospace" font-size="8" fill="#ff682c">breakout →</text>
+        </svg>
+      </div>
+      <div class="val acc">2.92</div>
+      <div class="delta">15m range<br><b>+0.12</b> over</div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <div><span class="tag">In</span>ORB break <b>729.78</b> @ 09:45</div>
+    <div><span class="tag">Out</span>EOD <b>729.08</b> @ 15:55</div>
+    <div><span class="tag">Path</span>peak <b>+1.86</b> 10:55 · trough <b>-2.80</b> 13:40</div>
+  </div>
+</div>
+</body>
+</html>

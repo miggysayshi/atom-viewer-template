@@ -1,0 +1,217 @@
+<!-- Concept 07: Mini Stat Tiles — 6-8 small icon+label+value tiles, Material Design vibe -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Concept 07 — Mini Stat Tiles</title>
+<style>
+  :root{
+    --bg:#1a2018;
+    --surface:#222b1f;
+    --surface2:#2a3424;
+    --border:#3a4632;
+    --text:#e8e8e8;
+    --muted:#8a9486;
+    --orange:#ff682c;
+    --buy:#00bfff;
+    --sell:#ff4444;
+    --green:#22c55e;
+    --red:#ef4444;
+    --yellow:#eab308;
+    --purple:#a78bfa;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,sans-serif;padding:24px;min-height:100vh}
+  .title{width:760px;margin:0 auto 8px;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+  .title b{color:var(--orange)}
+  .panel{width:760px;margin:0 auto;background:transparent;display:flex;flex-direction:column;gap:14px}
+  /* Header card */
+  .hdr{background:linear-gradient(135deg,#222b1f,#2a3424);border:1px solid var(--border);border-radius:16px;padding:16px 20px;display:grid;grid-template-columns:1fr auto auto;gap:18px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+  .hdr .id h1{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .hdr .id .sub{font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:.06em}
+  .dir{font-size:10px;font-weight:800;letter-spacing:.14em;padding:7px 14px;border-radius:999px;display:flex;align-items:center;gap:6px}
+  .dir.long{color:var(--buy);background:rgba(0,191,255,.1);border:1px solid rgba(0,191,255,.3)}
+  .pnl{text-align:right}
+  .pnl .amt{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .pnl .amt.neg{color:var(--red)}
+  .pnl .pct{font-size:11px;color:var(--red);font-weight:600;margin-top:3px}
+  /* Tile grid */
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.2);transition:transform .15s}
+  .tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--orange)}
+  .tile.buy::before{background:var(--buy)}
+  .tile.sell::before{background:var(--sell)}
+  .tile.green::before{background:var(--green)}
+  .tile.red::before{background:var(--red)}
+  .tile.purple::before{background:var(--purple)}
+  .tile.yellow::before{background:var(--yellow)}
+  .tile .icon{width:32px;height:32px;border-radius:8px;background:rgba(255,104,44,.12);color:var(--orange);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;margin-bottom:10px}
+  .tile.buy .icon{background:rgba(0,191,255,.12);color:var(--buy)}
+  .tile.sell .icon{background:rgba(255,68,68,.12);color:var(--sell)}
+  .tile.green .icon{background:rgba(34,197,94,.12);color:var(--green)}
+  .tile.red .icon{background:rgba(239,68,68,.12);color:var(--red)}
+  .tile.purple .icon{background:rgba(167,139,250,.12);color:var(--purple)}
+  .tile.yellow .icon{background:rgba(234,179,8,.12);color:var(--yellow)}
+  .tile .k{font-size:10px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;font-weight:600}
+  .tile .v{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px;line-height:1.1;letter-spacing:-.01em}
+  .tile .v.pos{color:var(--green)}
+  .tile .v.neg{color:var(--red)}
+  .tile .v.acc{color:var(--orange)}
+  .tile .v.buy-c{color:var(--buy)}
+  .tile .v.sell-c{color:var(--sell)}
+  .tile .sub{font-size:10px;color:var(--muted);margin-top:4px}
+  /* Wide tiles for key pairs */
+  .tiles .wide{grid-column:span 2}
+  .tile .meta-row{display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;padding-top:6px;border-top:1px dashed var(--border);font-size:10px}
+  .tile .meta-row span{color:var(--muted)}
+  .tile .meta-row b{font-weight:700}
+  .tile .meta-row .pos{color:var(--green)}
+  .tile .meta-row .neg{color:var(--red)}
+  /* Section dividers within tile */
+  .tiles .section{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:6px 4px 0}
+  .tiles .section h2{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .tiles .section .line{flex:1;height:1px;background:var(--border)}
+  /* Footer */
+  .foot{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:18px;font-size:11px;line-height:1.5}
+  .foot .it .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);font-weight:700;margin-bottom:4px}
+  .foot .it p{color:var(--ink);font-size:12px}
+  .foot .it p code{font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--surface2);color:#fff;padding:1px 5px;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="title">// Concept <b>07</b> — Mini Stat Tiles &nbsp;·&nbsp; 4-col grid &nbsp;·&nbsp; icon+label+value &nbsp;·&nbsp; Material vibe &nbsp;·&nbsp; spacious</div>
+
+<div class="panel">
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="id">
+      <h1>SPY <span style="color:var(--orange)">·</span> 15m ORB</h1>
+      <div class="sub">Tuesday, June 30, 2026</div>
+    </div>
+    <div class="dir long">▲ LONG</div>
+    <div class="pnl">
+      <div class="amt neg">-$0.58</div>
+      <div class="pct">-0.0795%</div>
+    </div>
+  </div>
+
+  <!-- TILES GRID -->
+  <div class="tiles">
+
+    <div class="section"><h2>Result</h2><div class="line"></div></div>
+
+    <div class="tile red">
+      <div class="icon">$</div>
+      <div class="k">P&amp;L</div>
+      <div class="v neg">-$0.58</div>
+      <div class="sub">100 sh</div>
+    </div>
+    <div class="tile red">
+      <div class="icon">%</div>
+      <div class="k">P&amp;L %</div>
+      <div class="v neg">-0.08%</div>
+      <div class="sub">-7.95 bps</div>
+    </div>
+    <div class="tile red">
+      <div class="icon">R</div>
+      <div class="k">R-Multiple</div>
+      <div class="v neg">-0.21R</div>
+      <div class="sub">on $2.80 risk</div>
+    </div>
+    <div class="tile">
+      <div class="icon">⏱</div>
+      <div class="k">Duration</div>
+      <div class="v acc">6h 10m</div>
+      <div class="sub">370 minutes</div>
+    </div>
+
+    <div class="section"><h2>Execution</h2><div class="line"></div></div>
+
+    <div class="tile buy">
+      <div class="icon">▶</div>
+      <div class="k">Entry</div>
+      <div class="v buy-c">$729.66</div>
+      <div class="sub">09:45 ET</div>
+    </div>
+    <div class="tile sell">
+      <div class="icon">■</div>
+      <div class="k">Exit</div>
+      <div class="v sell-c">$729.08</div>
+      <div class="sub">15:55 ET · EOD</div>
+    </div>
+    <div class="tile">
+      <div class="icon">⊟</div>
+      <div class="k">Size</div>
+      <div class="v" style="color:#fff">100 sh</div>
+      <div class="sub">standard lot</div>
+    </div>
+    <div class="tile">
+      <div class="icon">⚑</div>
+      <div class="k">Slippage</div>
+      <div class="v" style="color:#fff">$0.00</div>
+      <div class="sub">no impact</div>
+    </div>
+
+    <div class="section"><h2>Risk Bracket</h2><div class="line"></div></div>
+
+    <div class="tile red">
+      <div class="icon">▼</div>
+      <div class="k">Stop</div>
+      <div class="v sell-c">$726.86</div>
+      <div class="sub">2.80 pts risk</div>
+    </div>
+    <div class="tile green">
+      <div class="icon">▲</div>
+      <div class="k">Target</div>
+      <div class="v pos">$738.06</div>
+      <div class="sub">8.40 pts · 3R</div>
+    </div>
+    <div class="tile purple wide">
+      <div class="icon">⚖</div>
+      <div class="k">Planned R:R</div>
+      <div class="v" style="color:#fff">1 : 3.00</div>
+      <div class="meta-row">
+        <span>$ risk</span><b>$280.00</b>
+        <span>$ reward</span><b style="color:var(--green)">$840.00</b>
+      </div>
+    </div>
+
+    <div class="section"><h2>Excursion</h2><div class="line"></div></div>
+
+    <div class="tile green">
+      <div class="icon">↑</div>
+      <div class="k">MFE</div>
+      <div class="v pos">+1.86</div>
+      <div class="sub">peak 10:55</div>
+    </div>
+    <div class="tile red">
+      <div class="icon">↓</div>
+      <div class="k">MAE</div>
+      <div class="v neg">-2.80</div>
+      <div class="sub">trough 13:40</div>
+    </div>
+    <div class="tile yellow wide">
+      <div class="icon">∡</div>
+      <div class="k">Efficiency</div>
+      <div class="v acc">-31%</div>
+      <div class="meta-row">
+        <span>MFE/MAE</span><b>0.66</b>
+        <span>P&amp;L/MFE</span><b>-0.31</b>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="foot">
+    <div class="it">
+      <div class="lbl">Reason for Entry</div>
+      <p>ORB breakout above 15m OR high <code>$729.78</code> at 09:45 ET.</p>
+    </div>
+    <div class="it">
+      <div class="lbl">Reason for Exit</div>
+      <p>End of day — target <code>$738.06</code> not hit, stop <code>$726.86</code> not hit, closed at <code>$729.08</code>.</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

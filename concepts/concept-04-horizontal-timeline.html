@@ -1,0 +1,191 @@
+<!-- Concept 04: Horizontal Timeline — entry → stop/target → exit on time axis -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Concept 04 — Horizontal Timeline</title>
+<style>
+  :root{
+    --bg:#1a2018;
+    --surface:#222b1f;
+    --surface2:#2a3424;
+    --border:#3a4632;
+    --text:#e8e8e8;
+    --muted:#8a9486;
+    --dim:#5e6657;
+    --orange:#ff682c;
+    --buy:#00bfff;
+    --sell:#ff4444;
+    --green:#22c55e;
+    --red:#ef4444;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,sans-serif;padding:24px;min-height:100vh}
+  .title{width:760px;margin:0 auto 8px;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+  .title b{color:var(--orange)}
+  .panel{width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  /* Header */
+  .hdr{display:grid;grid-template-columns:1fr auto auto;gap:18px;align-items:center;padding:14px 20px;background:linear-gradient(135deg,#1c2418,#222b1f);border-bottom:1px solid var(--border)}
+  .hdr h1{font-size:20px;font-weight:800;letter-spacing:-.01em;line-height:1}
+  .hdr h1 .meta{font-size:11px;color:var(--muted);font-weight:500;display:block;margin-top:2px;letter-spacing:.04em}
+  .dir{font-size:11px;font-weight:800;letter-spacing:.14em;padding:6px 14px;border-radius:6px}
+  .dir.long{color:var(--buy);background:rgba(0,191,255,.1);border:1px solid rgba(0,191,255,.35)}
+  .pnl{text-align:right}
+  .pnl .amt{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .pnl .amt.neg{color:var(--red)}
+  .pnl .pct{font-size:11px;color:var(--red);font-weight:600;margin-top:2px}
+  /* Timeline wrap */
+  .tl-wrap{padding:28px 32px 14px;background:linear-gradient(180deg,#1a2018,#222b1f)}
+  .tl-axis{position:relative;height:160px;padding:0 4px}
+  /* Time axis base */
+  .tl-base{position:absolute;left:0;right:0;top:50%;height:2px;background:linear-gradient(90deg,transparent,var(--border) 4%,var(--border) 96%,transparent);transform:translateY(-50%)}
+  /* Hour ticks */
+  .ticks{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;justify-content:space-between;align-items:center}
+  .tick{font-size:9px;color:var(--muted);letter-spacing:.06em;font-family:'JetBrains Mono',monospace;display:flex;flex-direction:column;align-items:center;gap:2px}
+  .tick::after{content:"";width:1px;height:6px;background:var(--border)}
+  .tick.major{color:var(--text);font-weight:600}
+  .tick.major::after{height:10px;background:var(--orange)}
+  /* Marker dots */
+  .dot{position:absolute;width:18px;height:18px;border-radius:50%;transform:translate(-50%,-50%);top:50%;box-shadow:0 0 0 4px rgba(255,255,255,.05),0 0 12px currentColor;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#000;z-index:2}
+  .dot.entry{background:var(--buy);color:#000;left:18%}
+  .dot.peak{background:var(--green);color:#000;left:35%;width:14px;height:14px}
+  .dot.trough{background:var(--red);color:#000;left:68%;width:14px;height:14px}
+  .dot.exit{background:var(--sell);color:#000;left:96%;width:18px;height:18px}
+  /* Stop / target band as price axis overlay (subtle) */
+  .price-band{position:absolute;left:0;right:0;top:8px;bottom:8px;border:1px dashed rgba(255,68,68,.3);border-radius:4px;display:none}
+  /* Labels above/below dots */
+  .marker-lbl{position:absolute;transform:translateX(-50%);font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 7px;white-space:nowrap;z-index:3}
+  .marker-lbl .t{font-weight:700;color:#fff;font-family:'JetBrains Mono',monospace}
+  .marker-lbl .s{color:var(--muted);font-size:9px;display:block;margin-top:1px}
+  .marker-lbl.entry{top:calc(50% - 64px);left:18%;border-color:var(--buy);color:var(--buy)}
+  .marker-lbl.peak{top:calc(50% - 56px);left:35%;border-color:var(--green);color:var(--green)}
+  .marker-lbl.trough{top:calc(50% - 56px);left:68%;border-color:var(--red);color:var(--red)}
+  .marker-lbl.exit{top:calc(50% - 64px);left:96%;border-color:var(--sell);color:var(--sell)}
+  .marker-lbl.stop{top:calc(50% + 36px);left:0%;border-color:var(--red);color:var(--red)}
+  .marker-lbl.target{top:calc(50% + 36px);left:100%;border-color:var(--green);color:var(--green);transform:translateX(-100%)}
+  /* Connector lines from dots to lbls */
+  .marker-lbl::after{content:"";position:absolute;left:50%;width:1px;background:currentColor;opacity:.4}
+  .marker-lbl.above::after{bottom:-12px;height:12px}
+  .marker-lbl.below::after{top:-12px;height:12px}
+  /* Inline bar between entry and exit */
+  .hold-bar{position:absolute;left:18%;right:4%;top:50%;height:3px;background:linear-gradient(90deg,var(--buy),var(--sell));transform:translateY(-50%);border-radius:2px;opacity:.6}
+  /* Below the timeline: data grid */
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-top:1px solid var(--border)}
+  .cell{background:var(--surface);padding:11px 14px}
+  .cell .k{font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase}
+  .cell .v{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+  .cell .v.pos{color:var(--green)}
+  .cell .v.neg{color:var(--red)}
+  .cell .v.acc{color:var(--orange)}
+  .cell .sub{font-size:10px;color:var(--muted);margin-top:2px}
+  /* Footer */
+  .foot{padding:12px 20px;background:var(--surface2);border-top:1px solid var(--border);font-size:11px;color:var(--muted);line-height:1.55}
+  .foot b{color:var(--text);font-weight:600}
+  .foot .pill{display:inline-block;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);font-weight:700;padding:2px 6px;border:1px solid rgba(255,104,44,.4);border-radius:3px;margin-right:6px}
+</style>
+</head>
+<body>
+<div class="title">// Concept <b>04</b> — Horizontal Timeline &nbsp;·&nbsp; entry → peak → trough → exit on time axis &nbsp;·&nbsp; price markers</div>
+
+<div class="panel">
+  <div class="hdr">
+    <div>
+      <h1>SPY <span style="color:var(--orange)">·</span> Trade Timeline
+        <span class="meta">Tue Jun 30 2026 &nbsp;·&nbsp; 15m ORB breakout LONG</span>
+      </h1>
+    </div>
+    <div class="dir long">▲ LONG</div>
+    <div class="pnl">
+      <div class="amt neg">-$0.58</div>
+      <div class="pct">-0.08%</div>
+    </div>
+  </div>
+
+  <div class="tl-wrap">
+    <div class="tl-axis">
+      <div class="tl-base"></div>
+      <div class="hold-bar"></div>
+
+      <div class="marker-lbl entry above"><span class="t">729.66</span><span class="s">09:45 ENTRY · ORB break</span></div>
+      <div class="marker-lbl peak above"><span class="t">+1.86</span><span class="s">MFE 10:55</span></div>
+      <div class="marker-lbl trough above"><span class="t">-2.80</span><span class="s">MAE 13:40</span></div>
+      <div class="marker-lbl exit above"><span class="t">729.08</span><span class="s">15:55 EXIT · EOD</span></div>
+
+      <div class="dot entry">E</div>
+      <div class="dot peak"></div>
+      <div class="dot trough"></div>
+      <div class="dot exit">X</div>
+
+      <div class="marker-lbl stop below"><span class="t">726.86</span><span class="s">STOP (low)</span></div>
+      <div class="marker-lbl target below"><span class="t">738.06</span><span class="s">TARGET (+3R)</span></div>
+
+      <div class="ticks">
+        <div class="tick">09:30</div>
+        <div class="tick">10:00</div>
+        <div class="tick major">10:30</div>
+        <div class="tick">11:00</div>
+        <div class="tick">11:30</div>
+        <div class="tick major">12:00</div>
+        <div class="tick">12:30</div>
+        <div class="tick">13:00</div>
+        <div class="tick major">13:30</div>
+        <div class="tick">14:00</div>
+        <div class="tick">14:30</div>
+        <div class="tick major">15:00</div>
+        <div class="tick">15:30</div>
+        <div class="tick">16:00</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="cell">
+      <div class="k">R-Multiple</div>
+      <div class="v neg">-0.21R</div>
+      <div class="sub">on $2.80 stop</div>
+    </div>
+    <div class="cell">
+      <div class="k">Efficiency</div>
+      <div class="v neg">-31%</div>
+      <div class="sub">P&amp;L / MFE</div>
+    </div>
+    <div class="cell">
+      <div class="k">MFE/MAE</div>
+      <div class="v" style="color:#fff">0.66</div>
+      <div class="sub">excursion ratio</div>
+    </div>
+    <div class="cell">
+      <div class="k">Time in Trade</div>
+      <div class="v acc">6h 10m</div>
+      <div class="sub">370 minutes</div>
+    </div>
+    <div class="cell">
+      <div class="k">OR High</div>
+      <div class="v" style="color:#fff">729.78</div>
+      <div class="sub">15m range</div>
+    </div>
+    <div class="cell">
+      <div class="k">OR Low</div>
+      <div class="v" style="color:#fff">726.86</div>
+      <div class="sub">15m range</div>
+    </div>
+    <div class="cell">
+      <div class="k">Planned R:R</div>
+      <div class="v" style="color:#fff">1 : 3.0</div>
+      <div class="sub">2.80 / 8.40</div>
+    </div>
+    <div class="cell">
+      <div class="k">Exit Reason</div>
+      <div class="v acc">EOD</div>
+      <div class="sub">target/stop not hit</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span class="pill">Entry</span> ORB breakout above 15m OR high <b>$729.78</b> at 09:45 ET &nbsp;·&nbsp;
+    <span class="pill">Path</span> reached <b>+1.86</b> MFE at 10:55, drew to <b>-2.80</b> MAE at 13:40, never reclaimed &nbsp;·&nbsp;
+    <span class="pill">Exit</span> closed at <b>$729.08</b> at 15:55 EOD for <b>-0.21R</b>.
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,331 @@
+<!-- Concept 06: Quant Table — strict table, no decoration, sort hints -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Concept 06 — Quant Table (v2)</title>
+<style>
+  :root{
+    --bg:#1a2018;
+    --surface:#222b1f;
+    --surface2:#1c2418;
+    --border:#3a4632;
+    --rule:#2e382a;
+    --text:#e8e8e8;
+    --muted:#8a9486;
+    --dim:#5e6657;
+    --orange:#ff682c;
+    --buy:#00bfff;
+    --sell:#ff4444;
+    --green:#22c55e;
+    --red:#ef4444;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono','SF Mono',ui-monospace,Menlo,Consolas,monospace;padding:24px;min-height:100vh}
+  .title{width:760px;margin:0 auto 8px;font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+  .title b{color:var(--orange)}
+  .panel{width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+  /* Status bar */
+  .bar{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--rule);font-size:10px;letter-spacing:.06em}
+  .bar .pill{font-size:9px;padding:3px 7px;border-radius:2px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+  .bar .pill.long{color:var(--buy);background:rgba(0,191,255,.1);border:1px solid rgba(0,191,255,.3)}
+  .bar .id{color:var(--muted)}
+  .bar .id b{color:#fff}
+  .bar .res{color:var(--red);font-weight:700;font-size:13px}
+  .bar .res small{color:var(--muted);font-weight:500;margin-left:6px;font-size:10px}
+  /* Filter / search row */
+  .toolbar{display:flex;gap:1px;background:var(--rule);border-bottom:1px solid var(--rule)}
+  .tb{background:var(--surface2);padding:6px 10px;font-size:9px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;cursor:default;flex:1;display:flex;align-items:center;gap:6px}
+  .tb:first-child{flex:0 0 auto}
+  .tb::before{content:"⌕";color:var(--orange);font-size:10px}
+  .tb.s::before{content:"↕";}
+  .tb.f::before{content:"≡";}
+  .tb.e::before{content:"↗";}
+  /* Table */
+  table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+  thead th{padding:8px 12px;background:#1a2018;color:var(--muted);font-weight:600;font-size:9px;letter-spacing:.14em;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--rule);white-space:nowrap;position:sticky;top:0;cursor:default}
+  thead th.right{text-align:right}
+  thead th.sort{color:var(--orange)}
+  thead th.sort::after{content:" ▼";font-size:7px}
+  thead th .num{display:block;color:#fff;font-size:10px;letter-spacing:0;margin-top:2px;text-transform:none}
+  tbody tr{border-bottom:1px solid var(--rule);transition:background .15s}
+  tbody tr:hover{background:rgba(255,104,44,.04)}
+  tbody tr.hl{background:rgba(255,104,44,.05)}
+  tbody tr.hl td:first-child{box-shadow:inset 3px 0 0 var(--orange)}
+  td{padding:6px 12px;color:var(--text);white-space:nowrap}
+  td.right{text-align:right}
+  td.k{color:var(--muted);font-size:11px;letter-spacing:.04em}
+  td .unit{color:var(--muted);font-size:10px;margin-left:2px}
+  td .pos{color:var(--green)}
+  td .neg{color:var(--red)}
+  td .acc{color:var(--orange)}
+  td.section{background:var(--surface2);color:var(--orange);font-size:9px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;padding:4px 12px}
+  /* Row number gutter */
+  td.idx{color:var(--dim);width:30px;font-size:10px}
+  thead th.idx{padding-left:8px;padding-right:8px}
+  /* Status footer */
+  .stat-foot{display:flex;justify-content:space-between;padding:6px 14px;background:var(--surface2);border-top:1px solid var(--rule);font-size:10px;color:var(--muted)}
+  .stat-foot b{color:#fff;font-weight:600}
+  /* Detail drawer */
+  .drawer{padding:12px 14px;background:#1a2018;border-top:1px solid var(--orange);font-size:11px;line-height:1.5;display:grid;grid-template-columns:auto 1fr;gap:14px}
+  .drawer .lbl{color:var(--orange);font-weight:700;font-size:9px;letter-spacing:.14em;text-transform:uppercase;width:88px}
+  .drawer .txt{color:var(--ink)}
+  .drawer .txt code{color:#fff;background:var(--surface2);padding:1px 5px;border-radius:2px;font-size:10.5px}
+</style>
+<script src="https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<!-- v2: Chart on top -->
+<div class="v2-chart-frame">
+  <div class="v2-chart-header">
+    <span class="v2-chart-title">SPY · Tue Jun 30 2026 · 5m · Long EOD scratch</span>
+    <span class="v2-chart-legend">
+      <span class="lg lg-orh">OR H 729.78</span>
+      <span class="lg lg-orl">OR L 726.86</span>
+      <span class="lg lg-stop">Stop 726.86</span>
+      <span class="lg lg-tgt">Target 738.06</span>
+      <span class="lg lg-entry">▲ Entry 729.66</span>
+      <span class="lg lg-exit">▼ Exit 729.08</span>
+    </span>
+  </div>
+  <div id="v2-chart" class="v2-chart"></div>
+  <div class="v2-chart-foot">Olive bg #1a2018 · gray-up / white-down candles · premarket (translucent white) · after-hours (translucent black) · OR lines dashed · cyan ↑ / red ↓</div>
+</div>
+
+<script>
+const bars = [
+  {time: 1782488400, open: 727.0, high: 727.5, low: 726.8, close: 727.2, volume: 1.2e6, session: 'pre'},
+  {time: 1782490200, open: 727.2, high: 727.8, low: 727.0, close: 727.5, volume: 1.4e6, session: 'pre'},
+  {time: 1782492000, open: 727.5, high: 728.0, low: 727.3, close: 727.7, volume: 1.6e6, session: 'pre'},
+  {time: 1782493800, open: 727.7, high: 728.2, low: 727.5, close: 728.0, volume: 1.8e6, session: 'pre'},
+  {time: 1782495600, open: 728.0, high: 728.5, low: 727.8, close: 728.3, volume: 2.1e6, session: 'pre'},
+  {time: 1782497400, open: 728.3, high: 729.0, low: 728.2, close: 728.9, volume: 2.5e6, session: 'pre'},
+  {time: 1782499200, open: 728.9, high: 729.5, low: 728.7, close: 729.3, volume: 3.1e6, session: 'pre'},
+  {time: 1782501000, open: 729.3, high: 729.8, low: 729.2, close: 729.6, volume: 3.7e6, session: 'pre'},
+  {time: 1782502800, open: 729.6, high: 729.78, low: 726.86, close: 727.5, volume: 4.2e6, session: 'rth'},
+  {time: 1782504600, open: 727.5, high: 729.7, low: 727.0, close: 729.66, volume: 5.1e6, session: 'rth'},
+  {time: 1782507300, open: 729.66, high: 731.5, low: 729.5, close: 731.52, volume: 6.8e6, session: 'rth'},
+  {time: 1782509100, open: 731.5, high: 732.0, low: 730.8, close: 731.0, volume: 5.4e6, session: 'rth'},
+  {time: 1782510900, open: 731.0, high: 731.2, low: 729.0, close: 729.2, volume: 4.9e6, session: 'rth'},
+  {time: 1782512700, open: 729.2, high: 729.5, low: 727.5, close: 727.7, volume: 4.2e6, session: 'rth'},
+  {time: 1782514500, open: 727.7, high: 728.5, low: 727.0, close: 728.4, volume: 3.7e6, session: 'rth'},
+  {time: 1782516300, open: 728.4, high: 729.0, low: 727.8, close: 728.8, volume: 3.1e6, session: 'rth'},
+  {time: 1782518100, open: 728.8, high: 729.2, low: 728.0, close: 728.2, volume: 2.8e6, session: 'rth'},
+  {time: 1782519900, open: 728.2, high: 728.6, low: 727.5, close: 727.6, volume: 2.4e6, session: 'rth'},
+  {time: 1782521700, open: 727.6, high: 728.0, low: 726.86, close: 727.0, volume: 2.1e6, session: 'rth'},
+  {time: 1782523500, open: 727.0, high: 727.5, low: 726.5, close: 726.6, volume: 2.4e6, session: 'rth'},
+  {time: 1782525300, open: 726.6, high: 727.0, low: 725.5, close: 725.8, volume: 2.9e6, session: 'rth'},
+  {time: 1782527100, open: 725.8, high: 727.5, low: 725.5, close: 727.4, volume: 3.5e6, session: 'rth'},
+  {time: 1782528900, open: 727.4, high: 728.5, low: 727.2, close: 728.4, volume: 4.0e6, session: 'rth'},
+  {time: 1782530700, open: 728.4, high: 729.4, low: 728.2, close: 729.2, volume: 4.6e6, session: 'rth'},
+  {time: 1782531900, open: 729.2, high: 729.5, low: 728.9, close: 729.08, volume: 5.3e6, session: 'rth'},
+  {time: 1782533400, open: 729.1, high: 729.3, low: 728.8, close: 729.0, volume: 1.5e6, session: 'post'},
+  {time: 1782535200, open: 729.0, high: 729.2, low: 728.7, close: 728.8, volume: 1.2e6, session: 'post'},
+  {time: 1782537000, open: 728.8, high: 729.0, low: 728.5, close: 728.6, volume: 9.5e5, session: 'post'},
+  {time: 1782538800, open: 728.6, high: 728.9, low: 728.4, close: 728.5, volume: 7.8e5, session: 'post'},
+  {time: 1782540600, open: 728.5, high: 728.7, low: 728.3, close: 728.4, volume: 6.2e5, session: 'post'},
+  {time: 1782542400, open: 728.4, high: 728.6, low: 728.2, close: 728.3, volume: 4.9e5, session: 'post'},
+  {time: 1782544200, open: 728.3, high: 728.5, low: 728.1, close: 728.2, volume: 3.8e5, session: 'post'},
+  {time: 1782546000, open: 728.2, high: 728.4, low: 728.0, close: 728.1, volume: 2.9e5, session: 'post'},
+];
+const TRADE = {
+  entry_ts: 1782507300, exit_ts: 1782531900,
+  entry: 729.66, exit: 729.08,
+  stop: 726.86, target: 738.06,
+  or_high: 729.78, or_low: 726.86,
+};
+(function renderV2Chart() {
+  const container = document.getElementById('v2-chart');
+  if (!container) return;
+  const { createChart, CandlestickSeries, HistogramSeries, LineStyle } = LightweightCharts;
+  const chart = createChart(container, {
+    autoSize: true,
+    layout: { background: { type: 'solid', color: '#1a2018' }, textColor: '#7a8595', fontSize: 10 },
+    grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+    rightPriceScale: { borderColor: '#333', scaleMargins: { top: 0.08, bottom: 0.22 } },
+    timeScale: { borderColor: '#333', timeVisible: true, secondsVisible: false, rightOffset: 2 },
+    crosshair: { mode: 0 },
+  });
+  const candle = chart.addSeries(CandlestickSeries, {
+    upColor: '#6a6a6a', downColor: '#f0f0f0',
+    borderUpColor: '#6a6a6a', borderDownColor: '#f0f0f0',
+    wickUpColor: '#333333', wickDownColor: '#aaaaaa',
+  });
+  candle.setData(bars.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
+  const vol = chart.addSeries(HistogramSeries, {
+    priceFormat: { type: 'volume' }, priceScaleId: 'vol', color: '#333',
+  });
+  chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+  vol.setData(bars.map(b => ({
+    time: b.time, value: b.volume,
+    color: b.close >= b.open ? 'rgba(15,143,97,0.3)' : 'rgba(201,74,53,0.3)',
+  })));
+  // OR lines
+  candle.createPriceLine({ price: TRADE.or_high, color: 'rgba(34,197,94,0.5)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'OR H 729.78' });
+  candle.createPriceLine({ price: TRADE.or_low,  color: 'rgba(239,68,68,0.5)', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'OR L 726.86' });
+  // Stop & Target
+  candle.createPriceLine({ price: TRADE.stop,   color: '#ff4444', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Stop 726.86' });
+  candle.createPriceLine({ price: TRADE.target, color: '#22c55e', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Target 738.06' });
+  // Entry / exit markers as separate series using line series for arrows
+  const entryMarker = chart.addSeries(LightweightCharts.SeriesType ? null : (typeof LightweightCharts === 'object' ? null : null) );
+  // Use markers plugin via createSeriesMarkers if available; otherwise inline arrow via LineSeries
+  // v5 standalone: markers via createSeriesMarkers
+  if (typeof LightweightCharts.createSeriesMarkers === 'function') {
+    LightweightCharts.createSeriesMarkers(candle, [
+      { time: TRADE.entry_ts, position: 'belowBar', color: '#00bfff', shape: 'arrowUp', text: 'Entry 729.66 @ 09:45' },
+      { time: TRADE.exit_ts,  position: 'aboveBar', color: '#ff4444', shape: 'arrowDown', text: 'Exit 729.08 @ 15:55' },
+    ]);
+  } else {
+    // Fallback: tag via setMarkers / series markers accessor
+    try {
+      candle.setMarkers && candle.setMarkers([
+        { time: TRADE.entry_ts, position: 'belowBar', color: '#00bfff', shape: 'arrowUp', text: 'Entry 729.66' },
+        { time: TRADE.exit_ts,  position: 'aboveBar', color: '#ff4444', shape: 'arrowDown', text: 'Exit 729.08' },
+      ]);
+    } catch (e) {}
+  }
+  // Session overlays (premarket / after-hours translucent washes)
+  const pmBars = bars.filter(b => b.session === 'pre');
+  const postBars = bars.filter(b => b.session === 'post');
+  let pmOverlay = null, postOverlay = null;
+  if (pmBars.length >= 2) {
+    pmOverlay = document.createElement('div');
+    pmOverlay.style.cssText = 'position:absolute;top:0;bottom:0;background:rgba(255,255,255,0.08);pointer-events:none;z-index:1;display:none;';
+    container.appendChild(pmOverlay);
+  }
+  if (postBars.length >= 2) {
+    postOverlay = document.createElement('div');
+    postOverlay.style.cssText = 'position:absolute;top:0;bottom:0;background:rgba(0,0,0,0.30);pointer-events:none;z-index:1;display:none;';
+    container.appendChild(postOverlay);
+  }
+  function measureBarWidth(bs) {
+    if (bs.length < 2) return 0;
+    const t1 = chart.timeScale().timeToCoordinate(bs[0].time);
+    const t2 = chart.timeScale().timeToCoordinate(bs[1].time);
+    if (t1 == null || t2 == null) return 0;
+    return Math.abs(t2 - t1);
+  }
+  function positionOverlay(overlay, bs) {
+    if (!overlay || bs.length < 2) { if (overlay) overlay.style.display = 'none'; return; }
+    const firstX = chart.timeScale().timeToCoordinate(bs[0].time);
+    const lastX = chart.timeScale().timeToCoordinate(bs[bs.length - 1].time);
+    if (firstX == null || lastX == null) { overlay.style.display = 'none'; return; }
+    const w = Math.max(0, lastX + measureBarWidth(bs) - firstX);
+    if (w === 0) { overlay.style.display = 'none'; return; }
+    overlay.style.display = 'block';
+    overlay.style.left = firstX + 'px';
+    overlay.style.width = w + 'px';
+  }
+  function updateAll() {
+    positionOverlay(pmOverlay, pmBars);
+    positionOverlay(postOverlay, postBars);
+  }
+  updateAll();
+  chart.timeScale().subscribeVisibleTimeRangeChange(updateAll);
+  chart.timeScale().fitContent();
+})();
+</script>
+
+<style>
+/* v2 chart frame styles — charts depend on .v2-chart-frame being
+   position:relative so the absolutely-positioned overlays line up. */
+.v2-chart-frame{
+  width:760px;margin:0 auto 16px;background:var(--surface,#222b1f);
+  border:1px solid var(--border,#3a4632);border-radius:10px;
+  overflow:hidden;font-family:inherit;
+}
+.v2-chart-header{
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;
+  padding:8px 14px;background:linear-gradient(90deg,#161c14,#1a2018);
+  border-bottom:1px solid var(--orange,#ff682c);
+}
+.v2-chart-title{font-size:12px;font-weight:700;color:#fff;letter-spacing:.04em}
+.v2-chart-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:10px;color:var(--muted,#8a9486);font-family:ui-monospace,monospace}
+.v2-chart-legend .lg{white-space:nowrap}
+.v2-chart-legend .lg-orh{color:#22c55e}
+.v2-chart-legend .lg-orl{color:#ef4444}
+.v2-chart-legend .lg-stop{color:#ff4444}
+.v2-chart-legend .lg-tgt{color:#22c55e}
+.v2-chart-legend .lg-entry{color:#00bfff}
+.v2-chart-legend .lg-exit{color:#ff4444}
+.v2-chart{position:relative;width:100%;height:240px}
+.v2-chart-foot{padding:6px 14px;background:#0f130d;border-top:1px solid var(--border,#3a4632);font-size:10px;color:var(--muted,#7a8478);letter-spacing:.06em}
+</style>
+
+<div class="title">// Concept <b>06</b> — Quant Table &nbsp;·&nbsp; strict rows &nbsp;·&nbsp; sort/filter affordances &nbsp;·&nbsp; minimal decoration &nbsp;·&nbsp; dense</div>
+
+<div class="panel">
+  <div class="bar">
+    <div class="pill long">▲ LONG</div>
+    <div class="id">SPY &nbsp;·&nbsp; <b>Tue 2026-06-30</b> &nbsp;·&nbsp; 15m ORB &nbsp;·&nbsp; EOD exit &nbsp;·&nbsp; 100 sh</div>
+    <div class="res">-$0.58<small>(-0.08% / -0.21R)</small></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="tb">find</div>
+    <div class="tb s">sort: field ▲</div>
+    <div class="tb f">filter: all</div>
+    <div class="tb e">export csv</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="idx">#</th>
+        <th>FIELD</th>
+        <th class="right sort">VALUE<span class="num">▼</span></th>
+        <th class="right">UNIT</th>
+        <th class="right">Δ / NOTE</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="hl"><td class="idx">01</td><td class="k">ticker</td><td class="right" style="color:#fff;font-weight:700">SPY</td><td class="right" style="color:var(--muted)">symbol</td><td></td></tr>
+      <tr><td class="idx">02</td><td class="k">date</td><td class="right">2026-06-30</td><td class="right" style="color:var(--muted)">Tue</td><td class="acc">session</td></tr>
+      <tr><td class="idx">03</td><td class="k">direction</td><td class="right" style="color:var(--buy)">LONG</td><td class="right" style="color:var(--muted)">side</td><td>▲ breakout</td></tr>
+
+      <tr><td class="section" colspan="5">— TIMING —</td></tr>
+      <tr><td class="idx">04</td><td class="k">entry_time</td><td class="right">09:45</td><td class="right" style="color:var(--muted)">ET</td><td>ORB close</td></tr>
+      <tr><td class="idx">05</td><td class="k">exit_time</td><td class="right">15:55</td><td class="right" style="color:var(--muted)">ET</td><td>EOD</td></tr>
+      <tr><td class="idx">06</td><td class="k">duration</td><td class="right">370</td><td class="right" style="color:var(--muted)">min</td><td>6h 10m</td></tr>
+
+      <tr><td class="section" colspan="5">— PRICES —</td></tr>
+      <tr><td class="idx">07</td><td class="k">entry</td><td class="right">729.66</td><td class="right" style="color:var(--muted)">USD</td><td class="acc">+0.12 over OR high</td></tr>
+      <tr><td class="idx">08</td><td class="k">exit</td><td class="right" style="color:var(--red)">729.08</td><td class="right" style="color:var(--muted)">USD</td><td class="neg">-0.58 fill</td></tr>
+      <tr><td class="idx">09</td><td class="k">stop_price</td><td class="right" style="color:var(--red)">726.86</td><td class="right" style="color:var(--muted)">USD</td><td>= OR low</td></tr>
+      <tr><td class="idx">10</td><td class="k">target_price</td><td class="right" style="color:var(--green)">738.06</td><td class="right" style="color:var(--muted)">USD</td><td>OR high + 3R</td></tr>
+      <tr><td class="idx">11</td><td class="k">or_high</td><td class="right">729.78</td><td class="right" style="color:var(--muted)">USD</td><td>15m</td></tr>
+      <tr><td class="idx">12</td><td class="k">or_low</td><td class="right">726.86</td><td class="right" style="color:var(--muted)">USD</td><td>15m</td></tr>
+      <tr><td class="idx">13</td><td class="k">or_minutes</td><td class="right" style="color:var(--orange)">15</td><td class="right" style="color:var(--muted)">min</td><td>range</td></tr>
+
+      <tr><td class="section" colspan="5">— RISK —</td></tr>
+      <tr><td class="idx">14</td><td class="k">stop_distance</td><td class="right">2.80</td><td class="right" style="color:var(--muted)">pts</td><td>= MAE</td></tr>
+      <tr><td class="idx">15</td><td class="k">target_distance</td><td class="right">8.40</td><td class="right" style="color:var(--muted)">pts</td><td>3R</td></tr>
+      <tr><td class="idx">16</td><td class="k">r_ratio_plan</td><td class="right">3.00</td><td class="right" style="color:var(--muted)">×</td><td>1 : 3.0</td></tr>
+      <tr><td class="idx">17</td><td class="k">size</td><td class="right">100</td><td class="right" style="color:var(--muted)">sh</td><td></td></tr>
+
+      <tr><td class="section" colspan="5">— EXCURSION —</td></tr>
+      <tr><td class="idx">18</td><td class="k">mfe</td><td class="right pos">+1.86</td><td class="right" style="color:var(--muted)">pts</td><td>10:55</td></tr>
+      <tr><td class="idx">19</td><td class="k">mae</td><td class="right neg">-2.80</td><td class="right" style="color:var(--muted)">pts</td><td>13:40</td></tr>
+      <tr><td class="idx">20</td><td class="k">mfe_mae_ratio</td><td class="right">0.66</td><td class="right" style="color:var(--muted)">×</td><td></td></tr>
+      <tr><td class="idx">21</td><td class="k">efficiency</td><td class="right neg">-31.2%</td><td class="right" style="color:var(--muted)">pnl/mfe</td><td></td></tr>
+
+      <tr><td class="section" colspan="5">— RESULT —</td></tr>
+      <tr class="hl"><td class="idx">22</td><td class="k">pnl</td><td class="right neg">-0.58</td><td class="right" style="color:var(--muted)">USD</td><td class="neg">100 sh</td></tr>
+      <tr><td class="idx">23</td><td class="k">pnl_pct</td><td class="right neg">-0.0795</td><td class="right" style="color:var(--muted)">%</td><td class="neg">-7.95 bps</td></tr>
+      <tr><td class="idx">24</td><td class="k">r_multiple</td><td class="right neg">-0.21</td><td class="right" style="color:var(--muted)">R</td><td class="neg">lost 0.21× risk</td></tr>
+      <tr><td class="idx">25</td><td class="k">exit_reason</td><td class="right acc">EOD</td><td class="right" style="color:var(--muted)">code</td><td>end of day</td></tr>
+    </tbody>
+  </table>
+
+  <div class="drawer">
+    <div class="lbl">REASON</div>
+    <div class="txt">Entered <code>LONG @ 729.66</code> on 15m ORB breakout above <code>OR high 729.78</code> at 09:45. Stop <code>726.86</code>, target <code>738.06</code>. Exited <code>EOD @ 729.08</code> for <code>-0.21R</code>.</div>
+  </div>
+
+  <div class="stat-foot">
+    <span>25 rows · 5 sections · 1 trade</span>
+    <span>Last update <b>2026-06-30 16:01 ET</b></span>
+  </div>
+</div>
+</body>
+</html>
