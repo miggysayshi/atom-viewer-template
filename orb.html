@@ -93,7 +93,7 @@
     cursor: not-allowed;
   }
   .indicator-period {
-    width: 54px;
+    width: 112px;
     background: var(--surface2);
     border: 1px solid var(--border);
     color: var(--text);
@@ -485,9 +485,9 @@
   <div class="ribbon-group">
     <span class="ribbon-label">Indicators</span>
     <button class="ribbon-chip" data-indicator="sma" id="ind-sma">SMA 20</button>
-    <input class="indicator-period" id="sma-period" data-period="sma" type="number" min="2" max="300" step="1" value="20" title="SMA period">
+    <input class="indicator-period" id="sma-period" data-period="sma" type="text" value="20" title="SMA periods, comma-separated" placeholder="10, 20, 30">
     <button class="ribbon-chip" data-indicator="ema" id="ind-ema">EMA 20</button>
-    <input class="indicator-period" id="ema-period" data-period="ema" type="number" min="2" max="300" step="1" value="20" title="EMA period">
+    <input class="indicator-period" id="ema-period" data-period="ema" type="text" value="20" title="EMA periods, comma-separated" placeholder="10, 20, 30">
     <button class="ribbon-chip" data-indicator="vwap" id="ind-vwap">VWAP</button>
   </div>
 </div>
@@ -771,13 +771,31 @@ const orbState = {
   currentResolution: '5m',    // active resolution chip (1m/5m/15m)
   bars1mAvailable: false,     // whether server attached bars_1m to ≥1 trade
   indicators: { sma: false, ema: false, vwap: false },
-  indicatorPeriods: { sma: 20, ema: 20 },
+  indicatorPeriods: { sma: [20], ema: [20] },
 };
 
-function sanitizeIndicatorPeriod(value, fallback = 20) {
-  const n = Number.parseInt(value, 10);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(2, Math.min(300, n));
+function sanitizeIndicatorPeriods(value, fallback = [20]) {
+  const source = Array.isArray(value) ? value : String(value ?? '').split(',');
+  const seen = new Set();
+  const out = [];
+  for (const item of source) {
+    const n = Number.parseInt(String(item).trim(), 10);
+    if (!Number.isFinite(n)) continue;
+    const clamped = Math.max(2, Math.min(300, n));
+    if (seen.has(clamped)) continue;
+    seen.add(clamped);
+    out.push(clamped);
+  }
+  return out.length ? out : fallback.slice();
+}
+
+function samePeriods(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  return a.every((v, i) => v === b[i]);
+}
+
+function formatPeriods(periods) {
+  return periods.join(', ');
 }
 
 // Hydrate persisted state BEFORE the first run so the ribbon reflects the
@@ -795,8 +813,8 @@ try {
       orbState.indicators.vwap = !!parsed.indicators.vwap;
     }
     if (parsed && parsed.indicatorPeriods) {
-      orbState.indicatorPeriods.sma = sanitizeIndicatorPeriod(parsed.indicatorPeriods.sma, 20);
-      orbState.indicatorPeriods.ema = sanitizeIndicatorPeriod(parsed.indicatorPeriods.ema, 20);
+      orbState.indicatorPeriods.sma = sanitizeIndicatorPeriods(parsed.indicatorPeriods.sma, [20]);
+      orbState.indicatorPeriods.ema = sanitizeIndicatorPeriods(parsed.indicatorPeriods.ema, [20]);
     }
   }
 } catch (_) { /* ignore */ }
@@ -957,14 +975,14 @@ function vwapCalc(bars) {
 // readable; orange chosen last because it's the accent color used by the
 // run button.
 const INDICATOR_STYLE = {
-  sma:  { color: '#3b82f6', baseTitle: 'SMA' },  // blue
-  ema:  { color: '#eab308', baseTitle: 'EMA' },  // yellow
+  sma:  { colors: ['#3b82f6', '#60a5fa', '#93c5fd', '#2563eb', '#1d4ed8'], baseTitle: 'SMA' },  // blues
+  ema:  { colors: ['#eab308', '#f97316', '#facc15', '#fb923c', '#ca8a04'], baseTitle: 'EMA' },  // yellows/oranges
   vwap: { color: '#ff9a73', title: 'VWAP' },    // soft orange
 };
 
-function indicatorTitle(kind) {
+function indicatorTitle(kind, period = null) {
   if (kind === 'sma' || kind === 'ema') {
-    return `${INDICATOR_STYLE[kind].baseTitle} ${orbState.indicatorPeriods[kind]}`;
+    return `${INDICATOR_STYLE[kind].baseTitle} ${period}`;
   }
   return INDICATOR_STYLE[kind].title;
 }
@@ -978,24 +996,44 @@ function setIndicatorOnChart(trade, kind, on) {
   const series = indicatorSeriesByTrade.get(trade.date) || {};
   if (on && !series[kind]) {
     const bars = pickBarsForResolution(trade, orbState.currentResolution);
-    let data = [];
-    if (kind === 'sma') data = smaCalc(bars, orbState.indicatorPeriods.sma);
-    else if (kind === 'ema') data = emaCalc(bars, orbState.indicatorPeriods.ema);
-    else if (kind === 'vwap') data = vwapCalc(bars);
-    if (!data.length) return;
-    const style = INDICATOR_STYLE[kind];
-    const lineSeries = trade._chart.addSeries(LineSeries, {
-      color: style.color,
-      lineWidth: 2,
-      title: indicatorTitle(kind),
-      priceLineVisible: false,
-      lastValueVisible: false,
-    });
-    lineSeries.setData(data);
-    series[kind] = lineSeries;
+    if (kind === 'sma' || kind === 'ema') {
+      const style = INDICATOR_STYLE[kind];
+      const handles = [];
+      orbState.indicatorPeriods[kind].forEach((period, idx) => {
+        const data = kind === 'sma' ? smaCalc(bars, period) : emaCalc(bars, period);
+        if (!data.length) return;
+        const lineSeries = trade._chart.addSeries(LineSeries, {
+          color: style.colors[idx % style.colors.length],
+          lineWidth: 2,
+          title: indicatorTitle(kind, period),
+          priceLineVisible: false,
+          lastValueVisible: false,
+        });
+        lineSeries.setData(data);
+        handles.push(lineSeries);
+      });
+      if (!handles.length) return;
+      series[kind] = handles;
+    } else if (kind === 'vwap') {
+      const data = vwapCalc(bars);
+      if (!data.length) return;
+      const style = INDICATOR_STYLE[kind];
+      const lineSeries = trade._chart.addSeries(LineSeries, {
+        color: style.color,
+        lineWidth: 2,
+        title: indicatorTitle(kind),
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      lineSeries.setData(data);
+      series[kind] = lineSeries;
+    }
     indicatorSeriesByTrade.set(trade.date, series);
   } else if (!on && series[kind]) {
-    try { trade._chart.removeSeries(series[kind]); } catch (_) {}
+    const handles = Array.isArray(series[kind]) ? series[kind] : [series[kind]];
+    for (const handle of handles) {
+      try { trade._chart.removeSeries(handle); } catch (_) {}
+    }
     delete series[kind];
     if (Object.keys(series).length === 0) indicatorSeriesByTrade.delete(trade.date);
     else indicatorSeriesByTrade.set(trade.date, series);
@@ -1035,20 +1073,20 @@ function updateIndicatorChips() {
   smaBtn.classList.toggle('active', orbState.indicators.sma);
   emaBtn.classList.toggle('active', orbState.indicators.ema);
   document.getElementById('ind-vwap').classList.toggle('active', orbState.indicators.vwap);
-  smaBtn.textContent = `SMA ${orbState.indicatorPeriods.sma}`;
-  emaBtn.textContent = `EMA ${orbState.indicatorPeriods.ema}`;
-  document.getElementById('sma-period').value = orbState.indicatorPeriods.sma;
-  document.getElementById('ema-period').value = orbState.indicatorPeriods.ema;
+  smaBtn.textContent = `SMA ${formatPeriods(orbState.indicatorPeriods.sma)}`;
+  emaBtn.textContent = `EMA ${formatPeriods(orbState.indicatorPeriods.ema)}`;
+  document.getElementById('sma-period').value = formatPeriods(orbState.indicatorPeriods.sma);
+  document.getElementById('ema-period').value = formatPeriods(orbState.indicatorPeriods.ema);
 }
 
 function setIndicatorPeriod(kind, value) {
   if (kind !== 'sma' && kind !== 'ema') return;
-  const period = sanitizeIndicatorPeriod(value, orbState.indicatorPeriods[kind]);
-  if (period === orbState.indicatorPeriods[kind]) {
+  const periods = sanitizeIndicatorPeriods(value, orbState.indicatorPeriods[kind]);
+  if (samePeriods(periods, orbState.indicatorPeriods[kind])) {
     updateIndicatorChips();
     return;
   }
-  orbState.indicatorPeriods[kind] = period;
+  orbState.indicatorPeriods[kind] = periods;
   updateIndicatorChips();
   persistRibbonState();
   if (orbState.indicators[kind]) renderAllCharts();
