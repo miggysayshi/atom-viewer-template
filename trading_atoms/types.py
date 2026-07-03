@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 Direction = Literal['long', 'short']
-ExitReason = Literal['target', 'stop', 'eod']
+ExitReason = Literal['target', 'stop', 'eod', 'market_close']
 
 
 @dataclass

@@ -201,6 +201,24 @@
       }
     }
 
+    function measureBarWidthFrom(bars, bar) {
+      if (!bars || !bars.length || !bar) return 0;
+      const idx = bars.findIndex((b) => b && b.time === bar.time);
+      const next = idx >= 0 ? bars[idx + 1] : null;
+      const prev = idx > 0 ? bars[idx - 1] : null;
+      const x = chart.timeScale().timeToCoordinate(bar.time);
+      if (x == null) return 0;
+      if (next) {
+        const nx = chart.timeScale().timeToCoordinate(next.time);
+        if (nx != null) return Math.abs(nx - x);
+      }
+      if (prev) {
+        const px = chart.timeScale().timeToCoordinate(prev.time);
+        if (px != null) return Math.abs(x - px);
+      }
+      return 0;
+    }
+
     function render() {
       if (destroyed) return;
       if (!chart || !candleSeries) return;
@@ -260,8 +278,15 @@
         const exitSide = trade.direction === 'long' ? 'sell' : 'buy';
 
         const items = [
-          { side: entrySide, time: trade.entryTime, price: trade.entryPrice, type: 'entry' },
-          { side: exitSide, time: trade.exitTime, price: trade.exitPrice, type: 'exit' },
+          {
+            side: entrySide,
+            time: trade.entryTime,
+            barTime: trade.entryBarTime || trade.entryTime,
+            anchor: trade.entryAnchor || 'bar_start',
+            price: trade.entryPrice,
+            type: 'entry',
+          },
+          { side: exitSide, time: trade.exitTime, barTime: trade.exitBarTime || trade.exitTime, anchor: trade.exitAnchor || 'bar_start', price: trade.exitPrice, type: 'exit' },
         ];
 
         for (const m of items) {
@@ -269,9 +294,12 @@
 
           let x = null;
           if (bars) {
-            const bar = findBarAt(bars, m.time);
+            const bar = findBarAt(bars, m.barTime || m.time);
             if (!bar) continue;
             x = chart.timeScale().timeToCoordinate(bar.time);
+            if (x != null && m.anchor === 'bar_close') {
+              x += measureBarWidthFrom(bars, bar);
+            }
           } else {
             // No bars provided — try direct coordinate. LWC accepts both
             // numeric and YYYY-MM-DD times for timeToCoordinate.

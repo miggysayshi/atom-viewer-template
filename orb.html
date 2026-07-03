@@ -266,7 +266,7 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 18px;
+    gap: 8px;
     justify-content: flex-start;
     border-bottom: 1px solid var(--border);
   }
@@ -275,7 +275,7 @@
   .card-head .head-left {
     display: flex;
     align-items: baseline;
-    gap: 10px;
+    gap: 8px;
     min-width: 0;
     flex: 0 1 auto;
   }
@@ -292,7 +292,7 @@
     color: var(--text);
   }
   .card-head .day-date {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     color: var(--muted);
     margin-left: auto;        /* pin date to right edge of card-head */
@@ -301,18 +301,18 @@
   .pnl-block {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     font-variant-numeric: tabular-nums;
     text-align: right;
     min-width: 0;
     flex-shrink: 1;
   }
   .pnl-block .pnl-dollars {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
   }
   .pnl-block .pnl-rratio {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     opacity: 0.85;
   }
@@ -326,7 +326,7 @@
   .dir-badge {
     font-size: 14px;
     font-weight: 700;
-    padding: 2px 8px;
+    padding: 2px 6px;
     border-radius: 4px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -423,10 +423,78 @@
 <body>
 
 <div class="controls">
-  <h1><span class="accent">ORB</span> Opening Range Breakout</h1>
+  <h1><span class="accent">Atoms</span> Visual Check</h1>
   <div class="ctrl-group">
     <label>Symbol</label>
     <input type="text" id="symbol" value="SPY" maxlength="8" />
+  </div>
+  <div class="ctrl-group">
+    <label>Strategy</label>
+    <select id="strategy">
+      <option value="orb">ORB breakout</option>
+      <option value="streak_reversal">3-candle reversal</option>
+      <option value="premarket_breakout">Premarket breakout</option>
+      <option value="premarket_reentry">Premarket re-entry</option>
+      <option value="fashionably_late">SMB Fashionably Late VWAP/EMA</option>
+      <option value="larry_williams_3bar">Larry Williams 3-bar reversal</option>
+      <option value="engulfing">Engulfing close</option>
+      <option value="fvg_retrace">Fair value gap 50% retrace</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>Direction</label>
+    <select id="directionMode">
+      <option value="both" selected>Both</option>
+      <option value="long">Long only</option>
+      <option value="short">Short only</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>Stop</label>
+    <select id="stopMode">
+      <option value="current_extrema" selected>Current HOD/LOD</option>
+      <option value="one_bar">1-bar stop</option>
+      <option value="fvg_suggested">FVG candle stop</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>Strategy TF</label>
+    <select id="strategyTf">
+      <option value="1m">1m</option>
+      <option value="2m">2m</option>
+      <option value="3m">3m</option>
+      <option value="5m">5m</option>
+      <option value="10m">10m</option>
+      <option value="15m" selected>15m</option>
+      <option value="30m">30m</option>
+      <option value="1h">1hr</option>
+      <option value="4h">4hr</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>Risk TF</label>
+    <select id="riskTf" title="For 1-bar stops: lower-timeframe risk bar while signal/target stays on Strategy TF">
+      <option value="same" selected>Same</option>
+      <option value="1m">1m</option>
+      <option value="2m">2m</option>
+      <option value="3m">3m</option>
+      <option value="5m">5m</option>
+      <option value="10m">10m</option>
+      <option value="15m">15m</option>
+      <option value="30m">30m</option>
+      <option value="1h">1hr</option>
+      <option value="4h">4hr</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>Re-entries</label>
+    <select id="reentries" title="Max additional entries after a trade exits on the same day">
+      <option value="0" selected>None</option>
+      <option value="1">1 re-entry</option>
+      <option value="2">2 re-entries</option>
+      <option value="3">3 re-entries</option>
+      <option value="5">5 re-entries</option>
+    </select>
   </div>
   <div class="ctrl-group">
     <label>OR Window</label>
@@ -442,9 +510,13 @@
     <select id="interval">
       <option value="1m">1m</option>
       <option value="2m">2m</option>
+      <option value="3m">3m</option>
       <option value="5m" selected>5m</option>
+      <option value="10m">10m</option>
       <option value="15m">15m</option>
       <option value="30m">30m</option>
+      <option value="1h">1h</option>
+      <option value="4h">4h</option>
     </select>
   </div>
   <div class="ctrl-group">
@@ -479,8 +551,14 @@
   <div class="ribbon-group">
     <span class="ribbon-label">Resolution</span>
     <button class="ribbon-chip" data-resolution="1m" id="res-1m">1m</button>
+    <button class="ribbon-chip" data-resolution="2m" id="res-2m">2m</button>
+    <button class="ribbon-chip" data-resolution="3m" id="res-3m">3m</button>
     <button class="ribbon-chip active" data-resolution="5m" id="res-5m">5m</button>
+    <button class="ribbon-chip" data-resolution="10m" id="res-10m">10m</button>
     <button class="ribbon-chip" data-resolution="15m" id="res-15m">15m</button>
+    <button class="ribbon-chip" data-resolution="30m" id="res-30m">30m</button>
+    <button class="ribbon-chip" data-resolution="1h" id="res-1h">1h</button>
+    <button class="ribbon-chip" data-resolution="4h" id="res-4h">4h</button>
   </div>
   <div class="ribbon-group">
     <span class="ribbon-label">Indicators</span>
@@ -510,6 +588,10 @@
     <span class="value" id="sAvgPnl">—</span>
   </div>
   <div class="stat">
+    <span class="label">Total R</span>
+    <span class="value" id="sTotalR">—</span>
+  </div>
+  <div class="stat">
     <span class="label">Long / Short</span>
     <span class="value" id="sLongShort">—</span>
   </div>
@@ -536,7 +618,7 @@
 </div>
 
 <div class="gallery" id="gallery">
-  <div class="empty-state">Click <strong>Run Backtest</strong> to generate ORB trade examples.</div>
+  <div class="empty-state">Click <strong>Run Backtest</strong> to generate strategy visual-check cards.</div>
 </div>
 
 <div class="loading-overlay" id="loadingOverlay">
@@ -549,6 +631,29 @@ const { createChart, CandlestickSeries, HistogramSeries, LineSeries, LineStyle }
 
 // ── Controls ────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
+const initialParams = new URLSearchParams(location.search);
+if (initialParams.has('strategy') && $('strategy')) {
+  const requestedStrategy = initialParams.get('strategy');
+  $('strategy').value = requestedStrategy === 'three_green_red_short' ? 'streak_reversal' : requestedStrategy;
+  if (requestedStrategy === 'three_green_red_short' && $('directionMode') && !initialParams.has('direction')) {
+    $('directionMode').value = 'short';
+  }
+}
+if (initialParams.has('direction') && $('directionMode')) {
+  $('directionMode').value = initialParams.get('direction');
+}
+if (initialParams.has('stop') && $('stopMode')) {
+  $('stopMode').value = initialParams.get('stop');
+}
+if (initialParams.has('tf') && $('strategyTf')) {
+  $('strategyTf').value = initialParams.get('tf');
+}
+if (initialParams.has('risk_tf') && $('riskTf')) {
+  $('riskTf').value = initialParams.get('risk_tf');
+}
+if (initialParams.has('reentries') && $('reentries')) {
+  $('reentries').value = initialParams.get('reentries');
+}
 
 // ── BG color theme ──────────────────────────────────────────
 // Chart surface colors (one per swatch). Card frame is a slightly darker
@@ -621,8 +726,12 @@ function syncSwatchVisual() {
   });
 }
 
-// Track overlay instances keyed by trade.date so re-runs can clean up.
+// Track overlay instances keyed by unique trade id so same-day re-entries do not collide.
 const orbOverlays = new Map();
+
+function tradeKey(trade) {
+  return trade.trade_id || `${trade.date}-${trade.entry_ts || 'entry'}`;
+}
 
 // Destroy any previously created overlays. Called before each fresh run.
 function destroyAllOrbOverlays() {
@@ -666,9 +775,11 @@ function showExecutionPopup(execution, trade) {
   // P&L context — for the exit marker only; entry has no settled P&L yet.
   let pnlHtml = '';
   if (execution.type === 'exit' && trade && typeof trade.pnl === 'number') {
-    const sign = trade.pnl >= 0 ? '+' : '';
-    const cls = trade.pnl >= 0 ? 'pos' : 'neg';
-    pnlHtml = `<div class="orb-exec-row"><span class="k">Trade P&amp;L</span><span class="v ${cls}">${sign}${trade.pnl.toFixed(2)} (${sign}${trade.pnl_pct?.toFixed?.(2) ?? '0.00'}%)</span></div>`;
+    const tradePnl = Number.isFinite(trade.pnl_dollars) ? trade.pnl_dollars : trade.pnl;
+    const rRatio = Number.isFinite(trade.r_ratio) ? trade.r_ratio : 0;
+    const sign = tradePnl >= 0 ? '+' : '';
+    const cls = tradePnl >= 0 ? 'pos' : 'neg';
+    pnlHtml = `<div class="orb-exec-row"><span class="k">Trade P&amp;L</span><span class="v ${cls}">${sign}${tradePnl.toFixed(2)} (${rRatio >= 0 ? '+' : ''}${rRatio.toFixed(2)}R)</span></div>`;
   } else if (execution.type === 'entry' && trade && typeof trade.direction === 'string') {
     pnlHtml = `<div class="orb-exec-row"><span class="k">Direction</span><span class="v">${trade.direction.toUpperCase()}</span></div>`;
   }
@@ -683,7 +794,7 @@ function showExecutionPopup(execution, trade) {
     </div>
     <div class="orb-exec-row"><span class="k">Time</span><span class="v">${timeLabel}</span></div>
     <div class="orb-exec-row"><span class="k">Price</span><span class="v">${priceLabel}</span></div>
-    <div class="orb-exec-row"><span class="k">Size</span><span class="v">100 shares</span></div>
+    <div class="orb-exec-row"><span class="k">Size</span><span class="v">${Number.isFinite(trade?.size) ? trade.size : 100} shares</span></div>
     ${pnlHtml}
   `;
   // Inline base styles (matches dark theme from index.html).
@@ -763,7 +874,19 @@ function showExecutionPopup(execution, trade) {
 // cached here so a resolution/indicator toggle can re-render without a
 // refetch — the cards' P&L stays untouched because re-render only touches
 // chart contents, not card DOM.
-const RESOLUTION_SECONDS = { '1m': 60, '2m': 120, '3m': 180, '5m': 300, '10m': 600, '15m': 900, '30m': 1800, '1h': 3600 };
+const RESOLUTION_SECONDS = {
+  '1m': 60,
+  '2m': 120,
+  '3m': 180,
+  '5m': 300,
+  '10m': 600,
+  '15m': 900,
+  '30m': 1800,
+  '1h': 3600,
+  '4h': 14400,
+  '1d': 86400,
+  '1w': 604800,
+};
 
 const orbState = {
   trades: [],                 // last server response trades[]
@@ -993,7 +1116,7 @@ function indicatorTitle(kind, period = null) {
 const indicatorSeriesByTrade = new Map();  // trade.date -> { sma?, ema?, vwap? }
 
 function setIndicatorOnChart(trade, kind, on) {
-  const series = indicatorSeriesByTrade.get(trade.date) || {};
+  const series = indicatorSeriesByTrade.get(tradeKey(trade)) || {};
   if (on && !series[kind]) {
     const bars = pickBarsForResolution(trade, orbState.currentResolution);
     if (kind === 'sma' || kind === 'ema') {
@@ -1028,15 +1151,16 @@ function setIndicatorOnChart(trade, kind, on) {
       lineSeries.setData(data);
       series[kind] = lineSeries;
     }
-    indicatorSeriesByTrade.set(trade.date, series);
+    indicatorSeriesByTrade.set(tradeKey(trade), series);
   } else if (!on && series[kind]) {
     const handles = Array.isArray(series[kind]) ? series[kind] : [series[kind]];
     for (const handle of handles) {
       try { trade._chart.removeSeries(handle); } catch (_) {}
     }
     delete series[kind];
-    if (Object.keys(series).length === 0) indicatorSeriesByTrade.delete(trade.date);
-    else indicatorSeriesByTrade.set(trade.date, series);
+    const key = tradeKey(trade);
+    if (Object.keys(series).length === 0) indicatorSeriesByTrade.delete(key);
+    else indicatorSeriesByTrade.set(key, series);
   }
 }
 
@@ -1126,7 +1250,7 @@ function renderAllCharts() {
   // Wipe chart-wrap DOM nodes so each renderMiniChart starts clean. The
   // .card-details strip is preserved because it lives outside .chart-wrap.
   for (const trade of orbState.trades) {
-    const wrap = document.getElementById(`chart-${trade.date}`);
+    const wrap = document.getElementById(`chart-${tradeKey(trade)}`);
     if (!wrap) continue;
     // Drop any premarket/afterhours overlay divs left by the previous
     // chart instance — they would otherwise accumulate on rebuild.
@@ -1144,6 +1268,13 @@ function renderAllCharts() {
 
 async function runORB() {
   const symbol = $('symbol').value.trim().toUpperCase();
+  const strategy = $('strategy') ? $('strategy').value : 'orb';
+  const directionMode = $('directionMode') ? $('directionMode').value : 'both';
+  const stopMode = $('stopMode') ? $('stopMode').value : 'current_extrema';
+  const strategyTf = $('strategyTf') ? $('strategyTf').value : '15m';
+  const riskTfRaw = $('riskTf') ? $('riskTf').value : 'same';
+  const riskTf = riskTfRaw === 'same' ? strategyTf : riskTfRaw;
+  const maxReentries = $('reentries') ? $('reentries').value : '0';
   const orMinutes = $('orMinutes').value;
   const interval = $('interval').value;
   const days = $('days').value;
@@ -1159,7 +1290,7 @@ async function runORB() {
   $('loadingText').textContent = `Fetching ${symbol} intraday data from Yahoo Finance…`;
 
   try {
-    const resp = await fetch(`/api/orb?symbol=${symbol}&or=${orMinutes}&days=${days}&interval=${interval}`);
+    const resp = await fetch(`/api/orb?symbol=${encodeURIComponent(symbol)}&or=${orMinutes}&days=${days}&interval=${interval}&strategy=${encodeURIComponent(strategy)}&tf=${encodeURIComponent(strategyTf)}&risk_tf=${encodeURIComponent(riskTf)}&reentries=${encodeURIComponent(maxReentries)}&direction=${encodeURIComponent(directionMode)}&stop=${encodeURIComponent(stopMode)}`);
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({ error: resp.statusText }));
       throw new Error(err.error || 'Request failed');
@@ -1203,6 +1334,10 @@ function renderResults(data) {
   const avgEl = $('sAvgPnl');
   avgEl.textContent = `${summary.avg_pnl >= 0 ? '+' : ''}${summary.avg_pnl.toFixed(2)}`;
   avgEl.className = `value ${summary.avg_pnl >= 0 ? 'pos' : 'neg'}`;
+  const totalREl = $('sTotalR');
+  const totalR = Number(summary.total_r || 0);
+  totalREl.textContent = `${totalR >= 0 ? '+' : ''}${totalR.toFixed(2)}R`;
+  totalREl.className = `value ${totalR >= 0 ? 'pos' : 'neg'}`;
   $('sLongShort').textContent = `${summary.long_count}L / ${summary.short_count}S`;
   $('sAvgWin').textContent = `+${summary.avg_win.toFixed(2)}`;
   $('sAvgLoss').textContent = `${summary.avg_loss.toFixed(2)}`;
@@ -1245,27 +1380,35 @@ function renderResults(data) {
     // and color track the trade outcome — green for winners, red for losers.
     // Guard against a zero-risk denominator (stop == entry) which would yield
     // Infinity/NaN — fall back to 0 so the cell renders something sensible.
-    const riskPerShare = Math.abs(trade.entry - trade.stop_price);
-    const rRatio = riskPerShare > 0 ? trade.pnl / riskPerShare : 0;
+    const riskPerShare = Number.isFinite(trade.risk_per_share)
+      ? trade.risk_per_share
+      : Math.abs(trade.entry - trade.stop_price);
+    const rRatio = Number.isFinite(trade.r_ratio)
+      ? trade.r_ratio
+      : (riskPerShare > 0 ? trade.pnl / riskPerShare : 0);
     const rSign = rRatio >= 0 ? '+' : '';
     const rColor = rRatio >= 0 ? 'var(--green-bright)' : 'var(--red-bright)';
 
     // Per-trade share size: chosen so |entry - stop| * size ≈ RISK_PER_TRADE.
     // floor() to whole shares; if stop == entry (zero risk) we size to 0.
-    const size = riskPerShare > 0 ? Math.floor(RISK_PER_TRADE / riskPerShare) : 0;
+    const size = Number.isFinite(trade.size)
+      ? trade.size
+      : (riskPerShare > 0 ? Math.floor(RISK_PER_TRADE / riskPerShare) : 0);
 
     // Trade P&L in dollars: per-share P&L × share size. The server returns
     // `trade.pnl` as the per-share dollar move; the top strip should show
     // the actual dollar P&L of the trade after sizing. Sign matches trade.pnl
     // since `size` is always non-negative.
-    const tradePnlDollars = trade.pnl * size;
+    const tradePnlDollars = Number.isFinite(trade.pnl_dollars)
+      ? trade.pnl_dollars
+      : trade.pnl * size;
 
     // Reason for entry: describe the breakout direction against the OR
     // boundary that was breached, plus the entry time so the cell explains
     // both WHAT the trade did and WHEN.
-    const reasonForEntry = trade.direction === 'long'
+    const reasonForEntry = trade.reason_for_entry || (trade.direction === 'long'
       ? `ORB breakout above OR high ${trade.or_high.toFixed(2)} at ${trade.entry_time}`
-      : `ORB breakdown below OR low ${trade.or_low.toFixed(2)} at ${trade.entry_time}`;
+      : `ORB breakdown below OR low ${trade.or_low.toFixed(2)} at ${trade.entry_time}`);
 
     // Reason for exit: map the API's enum to a human-readable phrase. Pass
     // through any unknown value so unexpected reasons still surface.
@@ -1274,8 +1417,15 @@ function renderResults(data) {
       case 'target': reasonForExit = 'Hit target'; break;
       case 'stop':   reasonForExit = 'Hit stop';   break;
       case 'eod':    reasonForExit = 'End of day'; break;
+      case 'market_close': reasonForExit = 'Market close exit'; break;
       default:       reasonForExit = trade.exit_reason || '—';
     }
+    if (trade.reason_for_exit) reasonForExit = trade.reason_for_exit;
+
+    const targetLabel = Number.isFinite(trade.target_price)
+      ? trade.target_price.toFixed(2)
+      : '—';
+    const reentryLabel = trade.reentry_index > 0 ? ` · ${trade.reentry_label}` : '';
 
     card.innerHTML = `
       <div class="card-head">
@@ -1287,19 +1437,19 @@ function renderResults(data) {
             <span class="pnl-rratio ${rRatio >= 0 ? 'pos' : 'neg'}">${rSign}${rRatio.toFixed(2)}R</span>
           </div>
         </div>
-        <span class="day-date">${trade.day}</span>
+        <span class="day-date">${trade.day}${reentryLabel}</span>
         <button class="expand-toggle" aria-label="Toggle trade details" aria-expanded="false">▾</button>
       </div>
-      <div class="chart-wrap" id="chart-${trade.date}"></div>
+      <div class="chart-wrap" id="chart-${tradeKey(trade)}"></div>
       <div class="card-details">
         <div class="detail-cell"><span class="dl">Entry</span><span class="dv">${trade.entry.toFixed(2)}</span></div>
         <div class="detail-cell"><span class="dl">Exit</span><span class="dv">${trade.exit.toFixed(2)}</span></div>
         <div class="detail-cell"><span class="dl">Stop price</span><span class="dv" style="color:var(--red-bright)">${trade.stop_price.toFixed(2)}</span></div>
         <div class="detail-cell"><span class="dl">Size</span><span class="dv">${size} sh</span></div>
         <div class="detail-cell"><span class="dl">Trade Duration</span><span class="dv">${durationLabel}</span></div>
-        <div class="detail-cell"><span class="dl">Target</span><span class="dv" style="color:var(--green-bright)">${trade.target_price.toFixed(2)}</span></div>
+        <div class="detail-cell"><span class="dl">Target</span><span class="dv" style="color:var(--green-bright)">${targetLabel}</span></div>
         <div class="detail-cell"><span class="dl">R-Ratio</span><span class="dv" style="color:${rColor}">${rSign}${rRatio.toFixed(2)}R</span></div>
-        <div class="detail-cell"><span class="dl">$ Risk</span><span class="dv">$${RISK_PER_TRADE}</span></div>
+        <div class="detail-cell"><span class="dl">$ Risk</span><span class="dv">$${Number.isFinite(trade.risk_dollars) ? trade.risk_dollars.toFixed(2) : RISK_PER_TRADE}</span></div>
         <div class="detail-cell"><span class="dl">Entry Time</span><span class="dv">${trade.entry_time}</span></div>
         <div class="detail-cell"><span class="dl">Exit Time</span><span class="dv">${trade.exit_time}</span></div>
         <div class="detail-cell detail-cell-wide"><span class="dl">Reason for Entry</span><span class="dv">${reasonForEntry}</span></div>
@@ -1330,7 +1480,7 @@ function renderResults(data) {
 }
 
 function renderMiniChart(trade) {
-  const container = document.getElementById(`chart-${trade.date}`);
+  const container = document.getElementById(`chart-${tradeKey(trade)}`);
   if (!container) return;
 
   // Resolve the bars to display for the current resolution. Picks from
@@ -1413,24 +1563,24 @@ function renderMiniChart(trade) {
     color: b.close >= b.open ? 'rgba(15,143,97,0.3)' : 'rgba(201,74,53,0.3)',
   })));
 
-  // OR High / Low horizontal lines (drawn by the caller via createPriceLine
-  // because they need axisLabelVisible + custom title formatting that the
-  // overlay factory's priceLines option supports too — we use the inline API
-  // here to match the existing per-card styling 1:1).
-  candleSeries.createPriceLine({
-    price: trade.or_high,
-    color: 'rgba(34,197,94,0.5)',
-    lineWidth: 1,
-    lineStyle: LineStyle.Dashed,
-    axisLabelVisible: true,
-    title: 'OR H',
-  });
-  candleSeries.createPriceLine({
-    price: trade.or_low,
-    color: 'rgba(239,68,68,0.5)',
-    lineWidth: 1,
-    lineStyle: LineStyle.Dashed,
-    title: 'OR L',
+  // Strategy-neutral price lines. ORB provides OR H/L implicitly; other
+  // atom checks can pass trade.price_lines with labels like HOD Stop.
+  const priceLines = Array.isArray(trade.price_lines) && trade.price_lines.length
+    ? trade.price_lines
+    : [
+        { price: trade.or_high, color: 'rgba(34,197,94,0.5)', title: 'OR H' },
+        { price: trade.or_low, color: 'rgba(239,68,68,0.5)', title: 'OR L' },
+      ];
+  priceLines.forEach((line) => {
+    if (!Number.isFinite(line.price)) return;
+    candleSeries.createPriceLine({
+      price: line.price,
+      color: line.color || 'rgba(255,255,255,0.5)',
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: line.title || '',
+    });
   });
 
   // ── Premarket translucent overlay ──────────────────────────────────
@@ -1543,9 +1693,11 @@ function renderMiniChart(trade) {
     shape: 'T1',                              // matches index.html default
     priceLines: [],                            // OR H/L drawn above via createPriceLine
     getTrades: () => [{
-      id: trade.date,
+      id: tradeKey(trade),
       direction: trade.direction,
       entryTime: trade.entry_ts,
+      entryBarTime: trade.entry_bar_ts || trade.entry_ts,
+      entryAnchor: trade.entry_anchor || 'bar_start',
       entryPrice: trade.entry,
       exitTime: trade.exit_ts,
       exitPrice: trade.exit,
@@ -1563,7 +1715,7 @@ function renderMiniChart(trade) {
     onMarkerClick: (execution, tradeObj) => showExecutionPopup(execution, tradeObj),
     sizePct: 10,
   });
-  orbOverlays.set(trade.date, overlay);
+  orbOverlays.set(tradeKey(trade), overlay);
 
   // Wire any active indicator toggles into this freshly-built chart. Done
   // after the overlay so indicator series are added on top of every other

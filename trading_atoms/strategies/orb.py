@@ -3,12 +3,18 @@ from __future__ import annotations
 from ..cleaning import clamp_bars_by_session
 from ..exits import first_hit_exit
 from ..performance import metrics as compute_metrics
+from ..entries import aggregate_clock, normalize_timeframe, timeframe_seconds
 from ..range import detect_breakout, opening_range
 from ..sessions import annotate_et, serialize_chart_bar, split_sessions
 from ..stops import opposite_side_stop, r_multiple_target
 
 
-def run_orb_for_day(day_bars: list[dict], or_minutes: int, target_multiple: float = 3.0) -> dict | None:
+def run_orb_for_day(
+    day_bars: list[dict],
+    or_minutes: int,
+    target_multiple: float = 3.0,
+    timeframe: str = '5m',
+) -> dict | None:
     """Run Opening Range Breakout on one ET day.
 
     Returns the legacy /api/orb trade dict shape, plus additive `atoms` metadata.
@@ -30,6 +36,12 @@ def run_orb_for_day(day_bars: list[dict], or_minutes: int, target_multiple: floa
     or_range = opening_range(annotated, or_minutes)
     if or_range is None:
         return None
+
+    timeframe = normalize_timeframe(timeframe, default='5m')
+    strategy_rth_bars = aggregate_clock(or_range.rth_bars, timeframe)
+    strategy_rest_of_day = aggregate_clock(or_range.rest_of_day, timeframe)
+    or_range.rth_bars = strategy_rth_bars
+    or_range.rest_of_day = strategy_rest_of_day
 
     entry = detect_breakout(or_range)
     if entry is None:
@@ -87,6 +99,8 @@ def run_orb_for_day(day_bars: list[dict], or_minutes: int, target_multiple: floa
         'strategy': 'orb',
         'params': {
             'or_minutes': or_minutes,
+            'timeframe': timeframe,
+            'timeframe_seconds': timeframe_seconds(timeframe),
             'target_multiple': target_multiple,
             'same_bar_priority': 'stop',
         },

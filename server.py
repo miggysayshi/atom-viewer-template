@@ -19,9 +19,21 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from zoneinfo import ZoneInfo
 
 from trading_atoms.cleaning import clamp_bad_wicks
+from trading_atoms.entries import normalize_timeframe, timeframe_seconds
+from trading_atoms.performance import DEFAULT_RISK_DOLLARS, enrich_trade_outcome, summarize_normalized_trades
+from trading_atoms.reentries import collect_reentry_trades_for_day
+from trading_atoms.strategies.engulfing_fvg import run_engulfing_for_day, run_fvg_retrace_for_day
+from trading_atoms.strategies.fashionably_late import run_fashionably_late_for_day
+from trading_atoms.strategies.larry_williams import run_larry_williams_3bar_for_day
 from trading_atoms.strategies.orb import run_orb_for_day as run_orb_strategy_for_day
+from trading_atoms.strategies.premarket import run_premarket_breakout_for_day, run_premarket_reentry_for_day
+from trading_atoms.strategies.three_green_red_short import (
+    run_streak_reversal_for_day,
+    run_three_green_red_short_for_day,
+)
 
 ET = ZoneInfo("America/New_York")
+RISK_PER_TRADE = DEFAULT_RISK_DOLLARS
 
 ROOT = pathlib.Path(__file__).resolve().parent
 ALLOWED_RANGES = {"1d", "5d", "7d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"}
@@ -39,6 +51,7 @@ INTERVAL_BASE = {
     "24h": ("1h", 24),
     "1d": ("1d", 1),
     "1wk": ("1wk", 1),
+    "1w": ("1wk", 1),
     "1mo": ("1mo", 1),
     "1y": ("1mo", 12),
 }
@@ -56,6 +69,7 @@ INTERVAL_SECONDS = {
     "24h": 86400,
     "1d": 86400,
     "1wk": 7 * 86400,
+    "1w": 7 * 86400,
     "1mo": 31 * 86400,
     "1y": 366 * 86400,
 }
@@ -212,6 +226,8 @@ def fetch_raw_intraday(symbol: str, interval: str, days: int) -> list[dict]:
     seconds_per_day = 86400
     # Request 2x buffer for weekends/holidays
     buffer_days = max(days * 2, days + 10)
+    if interval == "1m":
+        buffer_days = min(buffer_days, 7)
     params = {
         "interval": interval,
         "period1": str(now_ts - buffer_days * seconds_per_day),
@@ -273,12 +289,39 @@ MARKET_CLOSE = dt.time(16, 0)
 PRE_START = dt.time(4, 0)
 
 
-def run_orb_for_day(day_bars: list[dict], or_minutes: int) -> dict | None:
+def run_orb_for_day(day_bars: list[dict], or_minutes: int, timeframe: str = '15m') -> dict | None:
     """
     Run ORB on a single day's bars (already sorted by ts).
     Returns trade result dict or None if no valid setup.
     """
-    return run_orb_strategy_for_day(day_bars, or_minutes)
+    return run_orb_strategy_for_day(day_bars, or_minutes, timeframe=timeframe)
+
+
+def _source_interval_for_strategy_tf(strategy_tf: str) -> str:
+    """Yahoo source interval to fetch before local strategy-timeframe aggregation."""
+    tf = normalize_timeframe(strategy_tf, default='15m')
+    if tf == '3m':
+        return '1m'
+    if tf == '10m':
+        return '5m'
+    if tf == '4h':
+        return '1h'
+    if tf == '1w':
+        return '1d'
+    return tf
+
+
+def _finest_source_interval(*timeframes: str | None) -> str:
+    """Fetch the finest native interval needed by signal, risk, and display TFs."""
+    sources = [_source_interval_for_strategy_tf(tf) for tf in timeframes if tf]
+    if not sources:
+        return '15m'
+    return min(sources, key=timeframe_seconds)
+
+
+def _source_interval_for_strategy_and_risk_tf(strategy_tf: str, risk_tf: str | None, display_interval: str | None = None) -> str:
+    """Backward-compatible wrapper; include display interval so chart fallback can be 1m."""
+    return _finest_source_interval(strategy_tf, risk_tf or strategy_tf, display_interval)
 
 
 def _clamp_wicks_for_session(bars: list[dict], session: str) -> int:
@@ -349,9 +392,24 @@ def _fetch_1m_bars_safe(symbol: str, days: int) -> list[dict]:
         return []
 
 
-def compute_orb(symbol: str, or_minutes: int, days: int, interval: str = "5m") -> dict:
-    """Full ORB run across N trading days."""
-    raw = fetch_raw_intraday(symbol, interval, days)
+def compute_orb(
+    symbol: str,
+    or_minutes: int,
+    days: int,
+    interval: str = "5m",
+    strategy: str = "orb",
+    strategy_tf: str = "15m",
+    direction_mode: str = "both",
+    stop_mode: str = "current_extrema",
+    risk_tf: str | None = None,
+    max_reentries: int = 0,
+) -> dict:
+    """Full strategy visual-check run across N trading days."""
+    strategy_tf = normalize_timeframe(strategy_tf, default='15m')
+    risk_tf = normalize_timeframe(risk_tf or strategy_tf, default=strategy_tf)
+    max_reentries = max(0, min(int(max_reentries or 0), 10))
+    fetch_interval = _source_interval_for_strategy_and_risk_tf(strategy_tf, risk_tf, interval)
+    raw = fetch_raw_intraday(symbol, fetch_interval, days)
 
     # ── Parallel 1m fetch (best-effort) ─────────────────────────────────
     # Yahoo returns 422 for 1m queries spanning >~7 days. Try anyway with a
@@ -416,9 +474,71 @@ def compute_orb(symbol: str, or_minutes: int, days: int, interval: str = "5m") -
     trades = []
     skipped = 0
     for day_key, day_bars in valid_days:
-        result = run_orb_for_day(day_bars, or_minutes)
-        if result:
-            trades.append(result)
+        def run_once(candidate_bars: list[dict]) -> dict | None:
+            if strategy == "three_green_red_short":
+                return run_three_green_red_short_for_day(candidate_bars, stop_mode=stop_mode, risk_timeframe=risk_tf)
+            if strategy == "streak_reversal":
+                return run_streak_reversal_for_day(
+                    candidate_bars,
+                    timeframe=strategy_tf,
+                    direction_mode=direction_mode,
+                    stop_mode=stop_mode,
+                    risk_timeframe=risk_tf,
+                )
+            if strategy == "premarket_breakout":
+                return run_premarket_breakout_for_day(
+                    candidate_bars,
+                    direction_mode=direction_mode,
+                    stop_mode=stop_mode,
+                    timeframe=strategy_tf,
+                    risk_timeframe=risk_tf,
+                )
+            if strategy == "premarket_reentry":
+                return run_premarket_reentry_for_day(
+                    candidate_bars,
+                    direction_mode=direction_mode,
+                    stop_mode=stop_mode,
+                    timeframe=strategy_tf,
+                    risk_timeframe=risk_tf,
+                )
+            if strategy == "larry_williams_3bar":
+                return run_larry_williams_3bar_for_day(
+                    candidate_bars,
+                    timeframe=strategy_tf,
+                    direction_mode=direction_mode,
+                    stop_mode=stop_mode,
+                    risk_timeframe=risk_tf,
+                )
+            if strategy == "engulfing":
+                return run_engulfing_for_day(
+                    candidate_bars,
+                    timeframe=strategy_tf,
+                    direction_mode=direction_mode,
+                    stop_mode=stop_mode,
+                    risk_timeframe=risk_tf,
+                )
+            if strategy == "fvg_retrace":
+                return run_fvg_retrace_for_day(
+                    candidate_bars,
+                    timeframe=strategy_tf,
+                    direction_mode=direction_mode,
+                    stop_mode=stop_mode,
+                    risk_timeframe=risk_tf,
+                )
+            if strategy == "fashionably_late":
+                return run_fashionably_late_for_day(
+                    candidate_bars,
+                    timeframe=strategy_tf,
+                    direction_mode=direction_mode,
+                    stop_mode=stop_mode,
+                    target_multiple=3.0,
+                    risk_timeframe=risk_tf,
+                )
+            return run_orb_for_day(candidate_bars, or_minutes, timeframe=strategy_tf)
+
+        day_trades = collect_reentry_trades_for_day(day_bars, run_once, max_reentries=max_reentries)
+        if day_trades:
+            trades.extend(day_trades)
         else:
             skipped += 1
 
@@ -437,40 +557,23 @@ def compute_orb(symbol: str, or_minutes: int, days: int, interval: str = "5m") -
                 f"  [1m] attached bars_1m to {bars_1m_trade_count}/{len(trades)} trades"
             )
 
-    # Summary stats
-    total_pnl = sum(t["pnl"] for t in trades)
-    wins = [t for t in trades if t["pnl"] > 0]
-    losses = [t for t in trades if t["pnl"] <= 0]
-    longs = [t for t in trades if t["direction"] == "long"]
-    shorts = [t for t in trades if t["direction"] == "short"]
-    target_exits = sum(1 for t in trades if t.get("exit_reason") == "target")
-    stop_exits = sum(1 for t in trades if t.get("exit_reason") == "stop")
-    eod_exits = sum(1 for t in trades if t.get("exit_reason") == "eod")
+    for trade in trades:
+        enrich_trade_outcome(trade)
 
-    summary = {
-        "symbol": symbol,
-        "or_minutes": or_minutes,
-        "interval": interval,
-        "bars_1m_available": bars_1m_trade_count > 0,
-        "bars_1m_trade_count": bars_1m_trade_count,
-        "total_days": len(valid_days),
-        "trade_days": len(trades),
-        "skipped_days": skipped,
-        "wins": len(wins),
-        "losses": len(losses),
-        "win_rate": round(len(wins) / len(trades) * 100, 1) if trades else 0,
-        "total_pnl": round(total_pnl, 2),
-        "avg_pnl": round(total_pnl / len(trades), 2) if trades else 0,
-        "avg_win": round(sum(t["pnl"] for t in wins) / len(wins), 2) if wins else 0,
-        "avg_loss": round(sum(t["pnl"] for t in losses) / len(losses), 2) if losses else 0,
-        "long_count": len(longs),
-        "short_count": len(shorts),
-        "target_exits": target_exits,
-        "stop_exits": stop_exits,
-        "eod_exits": eod_exits,
-        "best_trade": max((t["pnl"] for t in trades), default=0),
-        "worst_trade": min((t["pnl"] for t in trades), default=0),
-    }
+    summary = summarize_normalized_trades(
+        trades,
+        symbol=symbol,
+        strategy=strategy,
+        strategy_tf=strategy_tf,
+        direction_mode=direction_mode,
+        stop_mode=stop_mode,
+        or_minutes=or_minutes,
+        fetch_interval=fetch_interval,
+        bars_1m_trade_count=bars_1m_trade_count,
+        total_days=len(valid_days),
+        skipped=skipped,
+    )
+    summary['max_reentries'] = max_reentries
 
     return {"summary": summary, "trades": trades}
 
@@ -557,8 +660,14 @@ class Handler(BaseHTTPRequestHandler):
             or_minutes = int(query.get("or", ["15"])[0])
             days = int(query.get("days", ["20"])[0])
             interval = query.get("interval", ["5m"])[0]
+            strategy = query.get("strategy", ["orb"])[0]
+            strategy_tf = query.get("tf", ["15m"])[0]
+            direction_mode = query.get("direction", ["both"])[0]
+            stop_mode = query.get("stop", ["current_extrema"])[0]
+            risk_tf = query.get("risk_tf", [strategy_tf])[0]
+            max_reentries = int(query.get("reentries", ["0"])[0])
             try:
-                result = compute_orb(symbol, or_minutes, days, interval)
+                result = compute_orb(symbol, or_minutes, days, interval, strategy, strategy_tf, direction_mode, stop_mode, risk_tf, max_reentries)
                 self.send_json(200, result)
             except Exception as exc:
                 self.send_json(400, {"error": str(exc)})
